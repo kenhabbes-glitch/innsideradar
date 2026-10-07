@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Innsideradar</title>
+<meta name="description" content="Innsidehandel, short, kurser og fiktiv handel på Oslo Børs">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: trading-terminal. Tape ticker on top, signal strip, then two panes (innsidehandel | short) that stack on phone. */
+:root{
+  --bg:#0b0f14; --panel:#111821; --panel-2:#16202b; --line:#22303d; --fg:#d7e0e8; --dim:#7f8fa0;
+  --amber:#f5a524; --up:#22c55e; --down:#f0475a; --neutral:#6aa9ff;
+  --ui:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  color-scheme:dark;
+}
+ *{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--fg);font-family:var(--ui);font-size:14px;margin:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* tape */
+.tape{overflow:hidden;border-bottom:1px solid var(--line);background:var(--panel);white-space:nowrap;font-family:var(--mono);font-size:12px}
+.tape-in{display:inline-flex;gap:28px;padding:7px 0;animation:roll 90s linear infinite}
+.tape:hover .tape-in{animation-play-state:paused}
+@keyframes roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.tape-in{animation:none}}
+.tape b{color:var(--amber);font-weight:700;margin-right:6px}
+
+.wrap{padding-inline:16px;padding-block:16px 32px;max-width:1440px;margin:0 auto;display:grid;gap:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{font-size:26px;font-weight:700;letter-spacing:.02em;margin:0;text-transform:uppercase}
+.brand h1 span{color:var(--amber)}
+.stamp{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.live{display:inline-flex;align-items:center;gap:6px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--amber);display:inline-block}
+
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.kpi{background:var(--panel);padding:12px 14px;display:grid;gap:4px}
+.kpi .l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.kpi .v{font-family:var(--mono);font-size:22px;font-weight:700}
+.kpi .s{font-size:12px;color:var(--dim)}
+@media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* panels */
+.panel{background:var(--panel);border:1px solid var(--line);min-width:0;display:flex;flex-direction:column}
+.ph{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.ph h2{margin:0;font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.ph h2 em{font-style:normal;color:var(--amber);margin-right:8px;font-family:var(--mono)}
+.ph .src{font-size:11px;color:var(--dim)}
+.ph .src a{color:var(--dim)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1000px){.grid2{grid-template-columns:minmax(0,1fr)}}
+
+/* signal cards */
+.signals{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.sig{background:var(--panel);padding:12px 14px;border-right:1px solid var(--line)!important;border-bottom:1px solid var(--line)!important;display:grid;gap:8px;cursor:pointer;border:0;text-align:left;color:inherit;font:inherit}
+.sig:hover,.sig:focus-visible{background:var(--panel-2);outline:none}
+.sig .t{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.sig .tk{font-family:var(--mono);font-weight:700;color:var(--amber);font-size:15px}
+.sig .nm{color:var(--dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tug{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}
+.tug div{display:grid;gap:2px}
+.tug .k{color:var(--dim);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.tug .up{color:var(--up)} .tug .dn{color:var(--down)}
+.sig p{margin:0;font-size:12px;color:var(--dim);line-height:1.4}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{font:600 11px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border:1px solid var(--line);background:transparent;color:var(--dim);cursor:pointer}
+.chip[aria-pressed="true"]{color:var(--bg);background:var(--amber);border-color:var(--amber)}
+.chip:focus-visible,input:focus-visible{outline:2px solid var(--neutral);outline-offset:1px}
+input[type=search]{font:13px var(--mono);background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:6px 8px;width:170px;max-width:100%}
+
+/* tables */
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{position:sticky;top:0;background:var(--panel-2);text-align:left;font-weight:600;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.r,th.r{text-align:right;white-space:nowrap}
+tbody tr:hover{background:var(--panel-2)}
+tr.click{cursor:pointer}
+.tk{font-family:var(--mono);font-weight:700;color:var(--amber)}
+.who{display:grid;gap:1px;min-width:180px}
+.who small{color:var(--dim);font-size:11px}
+.badge{display:inline-block;font:700 10px/1 var(--mono);padding:4px 6px;letter-spacing:.06em}
+.b-K{color:var(--up);border:1px solid var(--up)}
+.b-S{color:var(--down);border:1px solid var(--down)}
+.b-P{color:var(--neutral);border:1px solid var(--neutral)}
+.b-O{color:var(--dim);border:1px solid var(--dim)}
+.scroll{max-height:620px;overflow:auto}
+.note{color:var(--dim);font-size:11px}
+.chg.up{color:var(--down)} .chg.dn{color:var(--up)}
+.bar{height:6px;background:var(--panel-2);position:relative;min-width:60px}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--down)}
+svg.spark{display:block}
+
+/* drawer */
+.drawer{border-top:1px solid var(--line);padding:12px 14px;display:grid;gap:10px;background:var(--panel-2)}
+.drawer h3{margin:0;font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.drawer h3 .x{margin-left:auto}
+.hold{display:grid;gap:6px}
+.hold div{display:grid;grid-template-columns:minmax(0,1fr) 64px 120px;gap:10px;font-size:12px;align-items:center}
+.hold span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foot{font-size:11px;color:var(--dim);line-height:1.5;max-width:90ch}
+.foot a{color:var(--dim)}
+.empty{padding:24px 14px;color:var(--dim);font-size:13px}
+
+.b-U{color:var(--dim);border:1px dashed var(--dim)}
+tr.msg{cursor:pointer}
+.err{padding:14px;color:var(--down);font-size:13px}
+
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* ---------- navigasjon ---------- */
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap}
+nav.tabs a{font:600 12px/1 var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-decoration:none;padding:9px 12px;border:1px solid var(--line);background:var(--panel)}
+nav.tabs a[aria-current="page"]{color:var(--bg);background:var(--amber);border-color:var(--amber)}
+nav.tabs a:focus-visible{outline:2px solid var(--neutral);outline-offset:1px}
+.sync{font:11px var(--mono);color:var(--dim);letter-spacing:.04em;cursor:pointer;background:none;border:0;padding:0}
+.sync b{font-weight:500}
+.sync.ok b{color:var(--up)} .sync.err b{color:var(--down)}
+@media (max-width:760px){
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(6,1fr)}
+  nav.tabs a{text-align:center;padding:10px 1px;font-size:9.5px;letter-spacing:.04em;border:0;background:transparent}
+  nav.tabs a[aria-current="page"]{color:var(--amber);background:transparent;box-shadow:inset 0 2px 0 var(--amber)}
+  .wrap{padding-block:16px 96px}
+}
+section.view{display:grid;gap:16px}
+
+/* ---------- marked ---------- */
+.mkt td{white-space:nowrap}
+.mkt td.nm{white-space:normal;min-width:150px}
+.pos{color:var(--up)} .neg{color:var(--down)}
+.dots{display:inline-flex;gap:3px;align-items:center}
+.dots i{width:8px;height:8px;display:inline-block}
+.dots i.opp{background:var(--up)} .dots i.ned{background:var(--down)} .dots i.nøytral{background:var(--neutral)}
+.rsi{display:inline-grid;grid-template-columns:44px auto;gap:6px;align-items:center}
+.rsi .track{height:4px;background:var(--panel-2);position:relative}
+.rsi .track b{position:absolute;top:-3px;width:2px;height:10px;background:var(--fg)}
+.rsi .track::before,.rsi .track::after{content:"";position:absolute;top:0;bottom:0;background:var(--line)}
+.rsi .track::before{left:0;width:30%;background:color-mix(in srgb,var(--up) 35%,transparent)}
+.rsi .track::after{right:0;width:30%;background:color-mix(in srgb,var(--down) 35%,transparent)}
+.star{background:none;border:0;color:var(--dim);cursor:pointer;font-size:15px;padding:0 4px}
+.star[aria-pressed="true"]{color:var(--amber)}
+
+/* ---------- instrument ---------- */
+.ihead{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.ihead h2{margin:0;font-size:24px;font-weight:700;letter-spacing:.01em}
+.ihead h2 .tk{font-size:24px;margin-right:10px}
+.ihead .px{font:700 28px var(--mono)}
+.ihead .meta{color:var(--dim);font-size:12px}
+.back{color:var(--dim);font-size:12px;text-decoration:none;letter-spacing:.06em;text-transform:uppercase}
+.chartbox{position:relative;min-width:0}
+.chartbox canvas{display:block;width:100%;touch-action:pan-y}
+.tip{position:absolute;top:8px;left:12px;font:11px var(--mono);color:var(--dim);pointer-events:none;display:flex;gap:10px;flex-wrap:wrap;right:12px}
+.tip b{color:var(--fg);font-weight:500}
+.legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;color:var(--dim)}
+.legend label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.legend i{width:14px;height:2px;display:inline-block}
+.cols{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1000px){.cols{grid-template-columns:minmax(0,1fr)}}
+.sigs{display:grid}
+.sigrow{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.sigrow .ic{font:700 12px var(--mono);width:18px;text-align:center}
+.sigrow .ic.opp{color:var(--up)} .sigrow .ic.ned{color:var(--down)} .sigrow .ic.nøytral{color:var(--neutral)}
+.sigrow b{font-weight:600}
+.sigrow p{grid-column:2;margin:0;color:var(--dim);font-size:12.5px;line-height:1.45}
+.pad{padding:12px 14px;display:grid;gap:12px}
+
+/* ---------- handel ---------- */
+.side{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line)}
+.side button{font:700 13px var(--ui);letter-spacing:.12em;text-transform:uppercase;padding:10px;border:0;background:transparent;color:var(--dim);cursor:pointer}
+.side button[aria-pressed="true"][data-s="K"]{background:var(--up);color:#04130a}
+.side button[aria-pressed="true"][data-s="S"]{background:var(--down);color:#1a0508}
+.field{display:grid;gap:5px}
+.field label,.lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.field input,.field textarea,.field select{font:14px var(--mono);background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:9px 10px;width:100%}
+.field textarea{font-family:var(--ui);min-height:64px;resize:vertical}
+.field input:focus-visible,.field textarea:focus-visible{outline:2px solid var(--neutral);outline-offset:0}
+.reasons{display:flex;flex-wrap:wrap;gap:6px}
+.calc{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:12.5px}
+.calc span:nth-child(odd){color:var(--dim)}
+.calc span:nth-child(even){font-family:var(--mono);text-align:right}
+.calc .tot{color:var(--fg)!important;font-weight:700;border-top:1px solid var(--line);padding-top:6px}
+.go{font:700 13px var(--ui);letter-spacing:.12em;text-transform:uppercase;padding:12px;border:0;cursor:pointer;background:var(--amber);color:#1b1200}
+.go:disabled{opacity:.4;cursor:not-allowed}
+.go.ghost{background:transparent;color:var(--dim);border:1px solid var(--line)}
+.go.danger{background:var(--down);color:#1a0508}
+.msg{font-size:12.5px;padding:8px 10px;border:1px solid var(--line)}
+.msg.ok{border-color:var(--up);color:var(--up)} .msg.err{border-color:var(--down);color:var(--down)}
+.confirm{display:grid;gap:10px;padding:12px;border:1px solid var(--amber);background:var(--panel-2)}
+.confirm .row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- portefølje ---------- */
+.journal .why{color:var(--fg);font-size:12.5px;line-height:1.4;max-width:46ch;white-space:normal}
+.journal small{color:var(--dim)}
+.settings{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:end}
+
+/* ---------- skole ---------- */
+.lessons{display:grid;gap:1px;background:var(--line);border:1px solid var(--line)}
+details.lesson{background:var(--panel)}
+details.lesson summary{cursor:pointer;padding:14px 16px;display:flex;gap:14px;align-items:baseline;list-style:none}
+details.lesson summary::-webkit-details-marker{display:none}
+details.lesson summary .no{font:700 12px var(--mono);color:var(--amber);min-width:26px}
+details.lesson summary h3{margin:0;font-size:16px;font-weight:600}
+details.lesson summary p{margin:2px 0 0;color:var(--dim);font-size:12.5px}
+details.lesson[open] summary{border-bottom:1px solid var(--line);background:var(--panel-2)}
+.lbody{padding:14px 16px 18px 56px;display:grid;gap:12px;max-width:80ch;line-height:1.6;font-size:14.5px}
+.lbody p,.lbody ul{margin:0}
+.lbody ul{padding-left:18px;display:grid;gap:6px}
+.lbody strong{color:var(--amber);font-weight:600}
+.lbody .tipbox{border-left:2px solid var(--neutral);padding:6px 12px;color:var(--dim);font-size:13.5px}
+.lbody svg{max-width:100%;height:auto}
+@media (max-width:760px){.lbody{padding-left:16px}}
+.patgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.patgrid div{border:1px solid var(--line);padding:10px;display:grid;gap:6px;font-size:13px}
+.patgrid b{font-size:13.5px}
+
+
+/* ---------- v4 ---------- */
+@media (max-width:1000px){
+  .cols>.stack:first-child{display:contents}
+  .cols>.stack:first-child>section{order:3}
+  .cols>.stack:first-child>section:first-child{order:1}
+  .cols>.stack:last-child{order:2}
+}
+.stack{display:grid;gap:16px;min-width:0;align-content:start}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.click{cursor:pointer}
+.sigrow.click:hover{background:var(--panel-2)}
+.kpis.macro{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media (max-width:1100px){.kpis.macro{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.kpis.macro{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi.mac .v{font-size:18px}.kpi.mac .v small{font-size:11px;color:var(--dim);font-weight:400}
+.kpis.small .v{font-size:18px}
+.ftable{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.frow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 14px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);cursor:help}
+.frow span{color:var(--dim);font-size:12px}.frow b{font-weight:500;text-align:right}
+.frow small{grid-column:1/-1;font-size:11px;color:var(--dim)}
+.incbars{display:grid;gap:4px}
+.incbars>div{display:grid;grid-template-columns:44px 1fr 80px;gap:2px 10px;align-items:center;font-size:12px}
+.incbars .yr{font-family:var(--mono);color:var(--dim)}
+.bar2{height:8px;background:var(--panel-2);position:relative;display:block}
+.bar2 i{position:absolute;inset:0 auto 0 0;background:var(--neutral)}
+.bar2.net i{background:var(--up)}.bar2.net i.neg{background:var(--down)}
+.allocrow{display:grid;grid-template-columns:130px 1fr 48px;gap:10px;align-items:center;font-size:12.5px}
+.allocrow .bar2 i{background:var(--neutral)}
+details.risk{border:1px solid var(--line);padding:10px;display:grid;gap:10px}
+details.risk summary{cursor:pointer}
+details.risk[open]{display:grid;gap:10px}
+.checks{display:grid;gap:6px}
+.chk{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:12.5px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.chk small{display:block;color:var(--dim);font-size:11px}
+.yn{display:flex;gap:4px}.yn .chip{padding:5px 8px}
+.attn{border-color:var(--amber)}
+.review{display:grid;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.review p{margin:0;font-size:13px;color:var(--dim)}
+.review textarea{font:13px var(--ui);background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:8px;min-height:54px}
+.journal .rv{color:var(--neutral);margin-top:4px;font-size:12px}
+.go.up{background:var(--up);color:#04130a}.go.down{background:var(--down);color:#1a0508}
+.quizgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.qz{display:grid;grid-template-columns:28px 1fr auto;gap:8px;padding:10px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--fg);text-decoration:none;font-size:13px}
+.qz .no{font:700 11px var(--mono);color:var(--amber)}
+.qz.full b{color:var(--up)}.qz.part b{color:var(--amber)}
+.quiz{display:grid;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:6px}
+.qq{display:grid;gap:6px}.qq b{font-weight:600;font-size:14px}
+.qa{display:flex;flex-wrap:wrap;gap:6px}
+.qa .chip{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;padding:8px 10px}
+.qa .chip.right{border-color:var(--up);color:var(--up)}.qa .chip.wrong{border-color:var(--down);color:var(--down)}
+.qa .chip:disabled{cursor:default}
+.qf{margin:0;font-size:13px;color:var(--dim)}
+.qs{font:600 11px var(--mono);color:var(--amber);margin-left:8px}.qs.full{color:var(--up)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,40px);opacity:0;background:var(--panel-2);border:1px solid var(--amber);color:var(--fg);padding:10px 14px;font-size:13px;z-index:50;transition:.25s;max-width:min(92vw,520px);pointer-events:none}
+#toast.on{transform:translate(-50%,0);opacity:1}
+@media (max-width:760px){#toast{bottom:84px}.two{grid-template-columns:1fr}}
+.sigrow a{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="tape" aria-label="Siste innsidehandler"><div class="tape-in" id="tape"></div></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Innside<span>radar</span></h1>
+      <span class="stamp live"><i></i><span id="upd">Laster …</span></span>
+    </div>
+    <nav class="tabs" aria-label="Hovedmeny">
+      <a href="#radar" data-v="radar">Radar</a>
+      <a href="#marked" data-v="marked">Marked</a>
+      <a href="#portefolje" data-v="portefolje">Portefølje</a>
+      <a href="#trening" data-v="trening">Trening</a>
+      <a href="#skole" data-v="skole">Skole</a>
+      <a href="#innstillinger" data-v="innstillinger">Oppsett</a>
+    </nav>
+  </header>
+
+  <section class="view" id="v-radar" aria-label="Radar">
+
+  <section class="kpis" id="kpis" aria-label="Nøkkeltall"></section>
+
+  <section class="panel" aria-labelledby="sigh">
+    <div class="ph"><h2 id="sigh"><em>◆</em>Dragkamp: innsidere kjøper, fond shorter</h2><span class="src">Selskaper med både innsidekjøp siste 30 dager og aktiv short</span></div>
+    <div class="signals" id="signals"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel" aria-labelledby="insh">
+      <div class="ph">
+        <h2 id="insh"><em>▲▼</em>Innsidehandel · 30 dager</h2>
+        <div class="ctl" role="group" aria-label="Filter">
+          <button class="chip" data-f="all" aria-pressed="true">Alle</button>
+          <button class="chip" data-f="K" aria-pressed="false">Kjøp</button>
+          <button class="chip" data-f="S" aria-pressed="false">Salg</button>
+          <button class="chip" data-f="P" aria-pressed="false">Program</button>
+          <button class="chip" data-f="?" aria-pressed="false">Uklar</button>
+          <input type="search" id="q" placeholder="Søk ticker / navn" aria-label="Søk i innsidehandel">
+        </div>
+      </div>
+      <div class="tbl scroll">
+        <table>
+          <thead><tr><th>Dato</th><th>Ticker</th><th>Innsider</th><th>Type</th><th class="r">Antall</th><th class="r">Kurs</th><th class="r">Verdi</th></tr></thead>
+          <tbody id="ins"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="shh">
+      <div class="ph">
+        <h2 id="shh"><em>▼</em>Mest shortet</h2>
+        <span class="src">% av aksjene · klikk for posisjoner</span>
+      </div>
+      <div class="tbl scroll">
+        <table>
+          <thead><tr><th>Selskap</th><th class="r">Short</th><th class="r">30 d</th><th>Trend</th></tr></thead>
+          <tbody id="short"></tbody>
+        </table>
+      </div>
+      <div class="drawer" id="drawer" hidden></div>
+    </section>
+  </div>
+
+  <p class="foot">Data hentes automatisk fra <a href="https://newsweb.oslobors.no" target="_blank" rel="noopener">Newsweb</a> (kategori «Meldepliktig handel for primærinnsidere») og <a href="https://ssr.finanstilsynet.no" target="_blank" rel="noopener">Finanstilsynets shortregister</a>. Shortregisteret viser bare offentlige posisjoner på 0,5 % eller mer, så faktisk short kan være høyere. Verdier i USD er oppgitt i USD. Innsidehandler tolkes automatisk fra meldingsteksten og kan inneholde feil. Klikk på en rad for å åpne originalmeldingen. Meldinger der detaljene kun står i vedlegg, merkes med «?». Dette er et analyseverktøy og ikke investeringsråd.</p>
+
+  </section>
+
+  <section class="view" id="v-marked" aria-label="Marked" hidden>
+    <section class="kpis macro" id="macro" aria-label="Makro" hidden></section>
+    <section class="panel">
+      <div class="ph">
+        <h2><em>◧</em>Marked</h2>
+        <div class="ctl" role="group" aria-label="Filter marked">
+          <button class="chip" data-m="alle" aria-pressed="true">Alle</button>
+          <button class="chip" data-m="aksje" aria-pressed="false">Aksjer</button>
+          <button class="chip" data-m="fond" aria-pressed="false">Fond</button>
+          <button class="chip" data-m="følger" aria-pressed="false">★ Følger</button>
+          <input type="search" id="mq" placeholder="Søk" aria-label="Søk i marked">
+        </div>
+      </div>
+      <div class="tbl">
+        <table class="mkt">
+          <thead><tr><th></th><th>Navn</th><th class="r" data-sort="last">Kurs</th><th class="r" data-sort="chg1">I dag</th><th class="r" data-sort="chg21">1 mnd</th><th class="r" data-sort="chg252">1 år</th><th data-sort="rsi">RSI</th><th>Signaler</th></tr></thead>
+          <tbody id="mkt"><tr><td colspan="8" class="empty">Laster kurser …</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel" id="fundcmp" hidden></section>
+    <p class="foot" id="mfoot">Kurser fra Yahoo Finance, forsinket ca. 15 minutter og oppdatert hver time i børsens åpningstid. Fond oppdateres med siste offisielle kurs (NAV).</p>
+  </section>
+
+  <section class="view" id="v-instr" aria-label="Instrument" hidden></section>
+  <section class="view" id="v-portefolje" aria-label="Portefølje" hidden></section>
+  <section class="view" id="v-trening" aria-label="Trening" hidden></section>
+  <section class="view" id="v-skole" aria-label="Skole" hidden></section>
+  <section class="view" id="v-innstillinger" aria-label="Oppsett" hidden></section>
+</div>
+
+<script src="radar.js"></script>
+<script type="module" src="main.js"></script>
+</body>
+</html>

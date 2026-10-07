@@ -1,0 +1,16 @@
+{
+  "name": "innsideradar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "data": "node scripts/fetch.mjs && node scripts/prices.mjs && node scripts/macro.mjs && node scripts/fundamentals.mjs && node scripts/news.mjs",
+    "dev": "npx --yes serve public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "web-push": "^3.6.7"
+  }
+}
