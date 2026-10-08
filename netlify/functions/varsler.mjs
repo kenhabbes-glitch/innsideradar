@@ -4,7 +4,8 @@ import { alerts } from "../../public/lib/alerts.js";
 import { vapid, sendAll } from "./push.mjs";
 
 export default async () => {
-  const base = process.env.URL || process.env.DEPLOY_PRIME_URL;
+  // Data leses fra GitHub-repoet (samme kilde som appen). Kan overstyres med DATA_URL i Netlify.
+  const base = (process.env.DATA_URL || "https://raw.githubusercontent.com/kenhabbes-glitch/innsideradar/main/public").replace(/\/$/, "");
   const P = await getStore("portefolje").get("hoved", { type: "json" });
   if (!P || !base) return;
   const get = p => fetch(`${base}/data/${p}`).then(r => (r.ok ? r.json() : null)).catch(() => null);

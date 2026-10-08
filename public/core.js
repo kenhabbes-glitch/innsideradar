@@ -49,14 +49,14 @@ const histCache = {}, newsCache = {};
 const v = () => (D.Q.updated || "").slice(0, 13);
 
 export async function loadAll() {
-  const get = (u, fb) => fetch(`${u}?v=${Date.now()}`).then(r => (r.ok ? r.json() : fb)).catch(() => fb);
-  const [q, s, i, f, m] = await Promise.all([get("data/quotes.json", null), get("data/ssr.json", []), get("data/insider.json", []), get("data/fund.json", { f: {} }), get("data/macro.json", {})]);
+  const get = (u, fb) => window.irFetch(`${u}?v=${Date.now()}`).then(r => (r.ok ? r.json() : fb)).catch(() => fb);
+  const [q, s, i, f, m] = await Promise.all([get("quotes.json", null), get("ssr.json", []), get("insider.json", []), get("fund.json", { f: {} }), get("macro.json", {})]);
   if (q) D.Q = q;
   D.RADAR = { short: Object.fromEntries(s.filter(x => x.tk).map(x => [x.tk, x])), ins: i };
   D.FUND = f; D.MACRO = m;
 }
 export async function hist(sym) {
-  histCache[sym] ||= fetch(`data/hist/${safe(sym)}.json?v=${v()}`).then(r => (r.ok ? r.json() : null)).then(h =>
+  histCache[sym] ||= window.irFetch(`hist/${safe(sym)}.json?v=${v()}`).then(r => (r.ok ? r.json() : null)).then(h =>
     h ? h.t.map((t, k) => ({ t, o: h.o[k], h: h.h[k], l: h.l[k], c: h.c[k], v: h.v[k] })) : []).catch(() => []);
   const bars = (await histCache[sym]).slice();
   const td = D.Q.q[sym]?.today;
@@ -64,7 +64,7 @@ export async function hist(sym) {
   return bars;
 }
 export async function news(sym) {
-  newsCache[sym] ||= fetch(`data/news/${safe(sym)}.json?v=${v().slice(0, 10)}`).then(r => (r.ok ? r.json() : [])).catch(() => []);
+  newsCache[sym] ||= window.irFetch(`news/${safe(sym)}.json?v=${v().slice(0, 10)}`).then(r => (r.ok ? r.json() : [])).catch(() => []);
   return newsCache[sym];
 }
 export const price = sym => D.Q.q[sym]?.last ?? null;

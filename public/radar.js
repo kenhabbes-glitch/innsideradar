@@ -12,7 +12,7 @@ const msgUrl = id => `https://newsweb.oslobors.no/message/${id}`;
 
 
 async function load(name) {
-  const r = await fetch(`data/${name}?v=${Date.now()}`);
+  const r = await window.irFetch(`${name}?v=${Date.now()}`);
   if (!r.ok) throw new Error(name);
   return r.json();
 }
