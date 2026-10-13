@@ -16,34 +16,59 @@ concurrency:
 jobs:
   hent:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 50
+    env:
+      SITE_URL: ${{ vars.SITE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Hent short og innsidehandel
+
+      # Dataene ligger i en egen gren («data») som overskrives hver gang.
+      # Da vokser ikke repoet, og Netlify publiserer ikke på nytt (det koster credits).
+      - name: Hent forrige data
+        run: |
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data
+            rm -rf public/data
+            git checkout FETCH_HEAD -- public/data
+            git reset -q
+            echo "Hentet forrige data fra grenen data"
+          else
+            echo "Første kjøring: starter fra dataene i main"
+          fi
+
+      - name: Liste over alle aksjer på Oslo Børs (1 gang i uken)
+        run: node scripts/universe-oslo.mjs
+        continue-on-error: true
+      - name: Papirer lagt til i appen
+        run: node scripts/extra.mjs
+        continue-on-error: true
+      - name: Short og innsidehandel
         run: node scripts/fetch.mjs
         continue-on-error: true
-      - name: Hent kurser
-        run: node scripts/prices.mjs
-      - name: Hent makro (olje, valuta, rente, laks, strøm)
-        run: node scripts/macro.mjs
-        continue-on-error: true
-      - name: Hent nøkkeltall (1 gang per døgn)
+      - name: Nøkkeltall og sektor (1 gang per døgn)
         run: node scripts/fundamentals.mjs
         continue-on-error: true
-      - name: Hent børsmeldinger per selskap (1 gang per døgn)
+      - name: Kurser
+        run: node scripts/prices.mjs
+      - name: Makro (olje, valuta, rente, laks, strøm)
+        run: node scripts/macro.mjs
+        continue-on-error: true
+      - name: Børsmeldinger per selskap (1 gang per døgn)
         run: node scripts/news.mjs
         continue-on-error: true
-      - name: Lagre endringer
+
+      - name: Lagre data i grenen data
         run: |
           git config user.name "innsideradar-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add public/data
-          if git diff --cached --quiet; then
-            echo "Ingen nye data."
-          else
-            git commit -m "Data $(date -u +'%Y-%m-%d %H:%M') UTC [skip netlify]"
-            git push
-          fi
+          # lag en frittstående commit med bare public/data (egen indeks, rører ikke main)
+          export GIT_INDEX_FILE="$RUNNER_TEMP/data-index"
+          rm -f "$GIT_INDEX_FILE"
+          git add -f public/data
+          TREE=$(git write-tree)
+          COMMIT=$(git commit-tree "$TREE" -m "Data $(date -u +'%Y-%m-%d %H:%M') UTC")
+          git push -f origin "$COMMIT:refs/heads/data"
+          echo "Data lagret ($(du -sh public/data | cut -f1))"
