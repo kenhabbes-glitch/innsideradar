@@ -13,11 +13,23 @@ export function renderSchool() {
     <p class="foot">Innholdet er laget for læring og er ikke investeringsråd. Historiske mønstre gir ingen garanti for fremtiden.</p>`;
   box.querySelectorAll(".quiz").forEach(bindQuiz);
 }
+// Trekk 3 tilfeldige spørsmål og stokk svaralternativene, så riktig svar ikke alltid står på samme plass
+const shuffle = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+const ROUNDS = {};
+function round(i) {
+  ROUNDS[i] = shuffle(QUIZ[i]).slice(0, 3).map(x => {
+    const order = shuffle(x.a.map((_, j) => j));
+    return { q: x.q, f: x.f, a: order.map(j => x.a[j]), c: order.indexOf(x.c) };
+  });
+  return ROUNDS[i];
+}
 function quizHtml(i) {
-  return `<div class="quiz" data-i="${i}"><span class="lbl">Test deg selv</span>${QUIZ[i].map((x, k) => `<div class="qq" data-k="${k}"><b>${k + 1}. ${esc(x.q)}</b><div class="qa">${x.a.map((a, j) => `<button type="button" class="chip" data-j="${j}">${esc(a)}</button>`).join("")}</div><p class="qf" hidden></p></div>`).join("")}</div>`;
+  const Q = round(i);
+  return `<div class="quiz" data-i="${i}"><span class="lbl">Test deg selv · 3 av ${QUIZ[i].length} spørsmål</span>${Q.map((x, k) => `<div class="qq" data-k="${k}"><b>${k + 1}. ${esc(x.q)}</b><div class="qa">${x.a.map((a, j) => `<button type="button" class="chip" data-j="${j}">${esc(a)}</button>`).join("")}</div><p class="qf" hidden></p></div>`).join("")}
+    <button type="button" class="go ghost qnew" hidden>Nye spørsmål</button></div>`;
 }
 function bindQuiz(el) {
-  const i = +el.dataset.i, Q = QUIZ[i];
+  const i = +el.dataset.i, Q = ROUNDS[i];
   const answers = {};
   el.querySelectorAll(".qq").forEach(qq => {
     const k = +qq.dataset.k;
@@ -33,6 +45,8 @@ function bindQuiz(el) {
         const prev = S.P.quiz[i];
         if (!prev || score >= prev.score) S.P.quiz[i] = { score, n: Q.length, t: new Date().toISOString() };
         commit(); toast(`Quiz: ${score} av ${Q.length} riktige`);
+        const nb = el.querySelector(".qnew"); nb.hidden = false;
+        nb.onclick = () => { const fresh = document.createElement("div"); fresh.innerHTML = quizHtml(i); const q = fresh.firstElementChild; el.replaceWith(q); bindQuiz(q); };
       }
     });
   });
