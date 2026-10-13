@@ -1,8 +1,8 @@
-import { $, D, S, esc, nf0, nf2, nf4, kr, pct, pctPlain, big, cls, label, tick, dmy, today, uid, toneIcon, spark, hist, news, book, fee, totalValue, isWatched, toggleWatch, commit, toast } from "../core.js";
+import { $, D, S, esc, nf0, nf2, nf4, kr, pct, pctPlain, big, cls, label, tick, dmy, today, uid, toneIcon, spark, hist, news, book, fee, totalValue, isWatched, toggleWatch, commit, toast, fxOf } from "../core.js";
 import { signals } from "../lib/indicators.js";
 import { createChart } from "../lib/chart.js";
 import { weekly, correlation } from "../lib/stats.js";
-import { MACRO, MACRO_FOR, macroSeries } from "./market.js";
+import { MACRO, MACRO_FOR, macroSeries, removeExtra } from "./market.js";
 
 export let chartRef = null;
 export function destroyChart() { if (chartRef) { chartRef.destroy(); chartRef = null; } }
@@ -33,8 +33,9 @@ export async function renderInstrument(sym) {
       <div><h2>${label(sym) ? `<span class="tk">${esc(label(sym))}</span>` : ""}${esc(q.navn)}</h2>
         <div class="meta">${esc(q.sektor)} · ${isFund ? "Fond" : "Aksje"} · ${esc(q.cur)}${q.time ? " · kurs fra " + new Date(q.time).toLocaleString("nb-NO", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</div></div>
       <div style="display:flex;gap:18px;align-items:flex-end">
-        <div><div class="px">${nf2.format(q.last)}</div><div class="num ${cls(q.chg1)}">${pct(q.chg1, 2)} i dag</div></div>
+        <div><div class="px">${nf2.format(q.last)}${q.cur && q.cur !== "NOK" ? ` <small class="note">${esc(q.cur)}</small>` : ""}</div><div class="num ${cls(q.chg1)}">${pct(q.chg1, 2)} i dag</div></div>
         <button class="chip" id="watch" aria-pressed="${isWatched(sym)}">★ Følg</button>
+        ${S.P.extra?.[sym]?.on ? `<button class="chip" id="unextra" type="button" title="Slutt å hente data for dette papiret">Fjern fra mine</button>` : ""}
       </div>
     </div>
     <div class="cols">
@@ -66,9 +67,9 @@ export async function renderInstrument(sym) {
         ${held && held.qty ? `<section class="panel"><div class="ph"><h2><em>■</em>Din posisjon</h2></div><div class="pad">
           <div class="calc">
             <span>Antall</span><span>${nf4.format(held.qty)}</span>
-            <span>Snittkost</span><span>${nf2.format(held.cost / held.qty)}</span>
-            <span>Verdi nå</span><span>${kr(held.qty * q.last)}</span>
-            <span>Avkastning</span><span class="${cls(held.qty * q.last - held.cost)}">${kr(held.qty * q.last - held.cost)} (${pct(held.qty * q.last / held.cost - 1)})</span>
+            <span>Snittkost (kr)</span><span>${nf2.format(held.cost / held.qty)}</span>
+            <span>Verdi nå</span><span>${kr(held.qty * q.last * fxOf(sym))}</span>
+            <span>Avkastning</span><span class="${cls(held.qty * q.last * fxOf(sym) - held.cost)}">${kr(held.qty * q.last * fxOf(sym) - held.cost)} (${pct(held.qty * q.last * fxOf(sym) / held.cost - 1)})</span>
           </div>
           <div class="field"><span class="lbl">Automatisk salg</span>
             <div class="two"><div class="field"><label for="ps">Stop-loss</label><input id="ps" type="number" step="0.01" value="${activeOrder?.stop ?? ""}" placeholder="kurs"></div>
@@ -80,9 +81,10 @@ export async function renderInstrument(sym) {
     </div>`;
 
   $("watch").onclick = () => { toggleWatch(sym); $("watch").setAttribute("aria-pressed", isWatched(sym)); };
+  if ($("unextra")) $("unextra").onclick = () => { removeExtra(sym); $("unextra").remove(); toast("Fjernet. Data slutter å oppdateres fra neste henting."); };
   if ($("saveorder")) $("saveorder").onclick = () => {
     const stop = +$("ps").value || null, target = +$("pt").value || null;
-    S.P.orders[sym] = stop || target ? { stop, target, t: new Date().toISOString(), d: today(), navn: q.navn, type: q.type } : { del: true, t: new Date().toISOString() };
+    S.P.orders[sym] = stop || target ? { stop, target, t: new Date().toISOString(), d: today(), navn: q.navn, type: q.type, fx: fxOf(sym) } : { del: true, t: new Date().toISOString() };
     commit(); toast(stop || target ? "Automatisk salg lagret" : "Automatisk salg fjernet");
   };
 
@@ -196,6 +198,7 @@ async function renderMoves(sym, bars) {
 function renderTrade(sym, q, sg, f, bars) {
   const el = $("trade");
   const isFund = q.type === "fond";
+  const FX = fxOf(sym), foreign = q.cur && q.cur !== "NOK";
   const b = book();
   const held = b.pos[sym]?.qty || 0;
   $("cashinfo").textContent = `Kontanter ${kr(b.cash)}`;
@@ -239,7 +242,7 @@ function renderTrade(sym, q, sg, f, bars) {
     el.querySelectorAll("[data-tag]").forEach(x => x.onclick = () => { tags.has(x.dataset.tag) ? tags.delete(x.dataset.tag) : tags.add(x.dataset.tag); x.setAttribute("aria-pressed", tags.has(x.dataset.tag)); });
     el.querySelectorAll("[data-ck]").forEach(x => x.onclick = () => { checks[x.dataset.ck] = x.dataset.v; el.querySelectorAll(`[data-ck="${x.dataset.ck}"]`).forEach(y => y.setAttribute("aria-pressed", y === x)); });
     el.querySelectorAll("[data-q]").forEach(x => x.onclick = () => {
-      const p = q.last, cash = book().cash;
+      const p = q.last * FX, cash = book().cash;
       let v = x.dataset.q;
       if (v === "max") {
         if (side === "S") v = isFund ? held * p : held;
@@ -251,8 +254,8 @@ function renderTrade(sym, q, sg, f, bars) {
     if ($("suggest")) $("suggest").onclick = () => {
       const stop = +$("stop").value, rp = +$("riskp").value / 100;
       if (!stop || stop >= q.last) { $("riskinfo").textContent = "Sett en stop-loss under dagens kurs først."; return; }
-      const n = (rp * totalValue()) / (q.last - stop);
-      $("amt").value = isFund ? Math.floor(n * q.last) : Math.max(0, Math.floor(n));
+      const n = (rp * totalValue()) / ((q.last - stop) * FX);
+      $("amt").value = isFund ? Math.floor(n * q.last * FX) : Math.max(0, Math.floor(n));
       calc();
     };
     ["amt", "stop", "target", "riskp"].forEach(id => { if ($(id)) $(id).oninput = calc; });
@@ -261,18 +264,19 @@ function renderTrade(sym, q, sg, f, bars) {
   };
   const order = () => {
     const a = +$("amt").value || 0, p = q.last;
-    const qty = isFund ? +(a / p).toFixed(4) : Math.floor(a);
-    const val = qty * p;
+    const qty = isFund ? +(a / (p * FX)).toFixed(4) : Math.floor(a);
+    const val = qty * p * FX;
     return { qty, val, fee: qty ? fee(val, q.type) : 0, p, stop: +($("stop")?.value) || null, target: +($("target")?.value) || null };
   };
   function calc() {
     const o = order(), tv = totalValue();
     const tot = side === "K" ? o.val + o.fee : o.val - o.fee;
-    const loss = o.stop && o.stop < o.p ? o.qty * (o.p - o.stop) + o.fee : null;
-    const gain = o.target && o.target > o.p ? o.qty * (o.target - o.p) - 2 * o.fee : null;
-    $("calc").innerHTML = `<span>Kurs</span><span>${nf2.format(o.p)}</span>
+    const loss = o.stop && o.stop < o.p ? o.qty * (o.p - o.stop) * FX + o.fee : null;
+    const gain = o.target && o.target > o.p ? o.qty * (o.target - o.p) * FX - 2 * o.fee : null;
+    $("calc").innerHTML = `<span>Kurs${foreign ? " (" + esc(q.cur) + ")" : ""}</span><span>${nf2.format(o.p)}</span>
+      ${foreign ? `<span>Valutakurs ${esc(q.cur)}/NOK</span><span>${FX ? nf4.format(FX) : "mangler"}</span>` : ""}
       ${isFund ? `<span>Andeler</span><span>${nf4.format(o.qty)}</span>` : ""}
-      <span>Verdi</span><span>${kr(o.val)}</span><span>Kurtasje</span><span>${isFund ? "0 kr (fond)" : kr(o.fee)}</span>
+      <span>Verdi i kroner</span><span>${kr(o.val)}</span><span>Kurtasje</span><span>${isFund ? "0 kr (fond)" : kr(o.fee)}</span>
       <span class="tot">${side === "K" ? "Du betaler" : "Du får"}</span><span class="tot">${kr(tot)}</span>
       ${o.val && side === "K" ? `<span>Andel av porteføljen</span><span ${o.val / tv > 0.1 ? 'style="color:var(--amber)"' : ""}>${pctPlain(o.val / tv, 0)}</span>` : ""}
       ${loss != null && o.qty ? `<span>Tap hvis stop-loss</span><span class="neg">${kr(-loss)} (${pctPlain(loss / tv)} av porteføljen)</span>` : ""}
@@ -281,7 +285,8 @@ function renderTrade(sym, q, sg, f, bars) {
   }
   function review() {
     const o = order(), b2 = book(), why = $("why").value.trim();
-    const err = !o.qty ? "Skriv inn antall eller beløp."
+    const err = !FX ? "Mangler valutakurs for dette papiret. Prøv igjen etter neste datahenting."
+      : !o.qty ? "Skriv inn antall eller beløp."
       : side === "K" && o.val + o.fee > b2.cash + 0.01 ? `Ikke nok kontanter. Du har ${kr(b2.cash)}.`
       : side === "S" && o.qty > (b2.pos[sym]?.qty || 0) + 1e-6 ? "Du kan ikke selge mer enn du eier."
       : !tags.size && why.length < 4 ? "Skriv kort hvorfor, eller velg en grunn. Det er slik du lærer."
@@ -299,8 +304,8 @@ function renderTrade(sym, q, sg, f, bars) {
     $("cancel").onclick = () => { $("conf").innerHTML = ""; };
     $("ok").onclick = () => {
       const now = new Date();
-      S.P.trades.push({ id: uid(), t: now.toISOString(), d: today(), sym, navn: q.navn, type: q.type, side, qty: o.qty, price: o.p, fee: o.fee, tags: [...tags], why, sig: sg.map(s => s.tittel).slice(0, 6), check: side === "K" ? { ...checks } : undefined, stop: o.stop, target: o.target });
-      if (side === "K" && (o.stop || o.target)) S.P.orders[sym] = { stop: o.stop, target: o.target, t: now.toISOString(), d: today(), navn: q.navn, type: q.type };
+      S.P.trades.push({ id: uid(), t: now.toISOString(), d: today(), sym, navn: q.navn, type: q.type, side, qty: o.qty, price: o.p, fx: FX, cur: q.cur, fee: o.fee, tags: [...tags], why, sig: sg.map(s => s.tittel).slice(0, 6), check: side === "K" ? { ...checks } : undefined, stop: o.stop, target: o.target });
+      if (side === "K" && (o.stop || o.target)) S.P.orders[sym] = { stop: o.stop, target: o.target, t: now.toISOString(), d: today(), navn: q.navn, type: q.type, fx: FX };
       commit();
       renderInstrument(sym).then(() => toast(`${side === "K" ? "Kjøpt" : "Solgt"} ${nf4.format(o.qty)} ${isFund ? "andeler" : "aksjer"} i ${q.navn}`));
     };

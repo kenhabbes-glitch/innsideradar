@@ -7,9 +7,10 @@ export function book(P, upTo) {
   for (const t of P.trades || []) {
     if (upTo && t.d > upTo) break;
     const p = (pos[t.sym] ||= { sym: t.sym, qty: 0, cost: 0, first: t.d });
-    if (t.side === "K") { cash -= t.qty * t.price + t.fee; p.cost += t.qty * t.price + t.fee; p.qty += t.qty; }
+    const fx = t.fx || 1;
+    if (t.side === "K") { cash -= t.qty * t.price * fx + t.fee; p.cost += t.qty * t.price * fx + t.fee; p.qty += t.qty; }
     else {
-      const avg = p.qty ? p.cost / p.qty : 0, proceeds = t.qty * t.price - t.fee;
+      const avg = p.qty ? p.cost / p.qty : 0, proceeds = t.qty * t.price * fx - t.fee;
       cash += proceeds; realized += proceeds - avg * t.qty; p.cost -= avg * t.qty; p.qty -= t.qty;
     }
     fees += t.fee;
@@ -34,8 +35,8 @@ export function runOrders(P, barsFor, feeFn) {
       if (o.stop && bar.l <= o.stop) { px = Math.min(bar.o, o.stop); why = `Stop-loss utløst på ${fmt(o.stop)}`; }
       else if (o.target && bar.h >= o.target) { px = Math.max(bar.o, o.target); why = `Kursmål nådd på ${fmt(o.target)}`; }
       if (px != null) {
-        const val = qty * px;
-        out.push({ id: `auto-${sym}-${o.t}`, t: bar.t + "T16:30:00.000Z", d: bar.t, sym, navn: o.navn, type: o.type, side: "S", qty, price: px, fee: feeFn(val, o.type), tags: [o.stop && bar.l <= o.stop ? "Stop-loss" : "Ta gevinst"], why, auto: true, sig: [] });
+        const fx = o.fx || 1, val = qty * px * fx;
+        out.push({ id: `auto-${sym}-${o.t}`, t: bar.t + "T16:30:00.000Z", d: bar.t, sym, navn: o.navn, type: o.type, side: "S", qty, price: px, fx, fee: feeFn(val, o.type), tags: [o.stop && bar.l <= o.stop ? "Stop-loss" : "Ta gevinst"], why, auto: true, sig: [] });
         break;
       }
     }

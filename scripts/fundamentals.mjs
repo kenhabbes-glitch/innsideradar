@@ -1,6 +1,6 @@
 // Henter nøkkeltall (P/E, utbytte, vekst, gjeld, analytikere, resultatdatoer) og fondskostnader fra Yahoo Finance.
 // Kjøres én gang per døgn (hopper over hvis data er ferskere enn 20 timer). Skriver public/data/fund.json.
-import { universe, readJson, writeJson, fresh, sleep } from "./lib.mjs";
+import { allInstruments, readJson, writeJson, fresh, sleep } from "./lib.mjs";
 
 if (await fresh("fund.json", 20) && !process.env.FORCE) { console.log("Nøkkeltall: ferske, hopper over"); process.exit(0); }
 
@@ -16,18 +16,30 @@ async function session() {
   return { cookies, crumb };
 }
 
+// Yahoo-sektor → norsk sektor (samme navn som i den håndplukkede listen)
+function sector(ap) {
+  if (!ap) return null;
+  const i = ap.industry || "", s = ap.sector || "";
+  if (/Farm Products|Fish/i.test(i)) return "Sjømat";
+  if (/Marine Shipping|Shipping/i.test(i)) return "Shipping";
+  if (/Oil & Gas (Equipment|Drilling)/i.test(i)) return "Oljeservice";
+  if (/Solar|Renewable|Utilities/i.test(i + s)) return "Fornybar";
+  if (/Real Estate|Engineering & Construction|Building/i.test(i + s)) return "Bygg og eiendom";
+  if (/Biotech|Drug|Medical|Health/i.test(i + s)) return "Helse";
+  return { Energy: "Energi", "Financial Services": "Finans", Industrials: "Industri", Technology: "Teknologi", "Communication Services": "Telekom", "Consumer Cyclical": "Forbruk", "Consumer Defensive": "Forbruk", "Basic Materials": "Råvarer" }[s] || null;
+}
 const raw = x => (x && typeof x === "object" ? x.raw ?? null : x ?? null);
 const date = x => (raw(x) ? new Date(raw(x) * 1000).toISOString().slice(0, 10) : null);
 
-const U = await universe();
+const LIST = await allInstruments();
 const old = await readJson("fund.json", { f: {} });
 let s;
 try { s = await session(); } catch (e) { console.warn(e.message); process.exit(0); }
 
 const out = {};
 let ok = 0;
-for (const [sym, , type] of U.instruments) {
-  const mods = type === "fond" ? "fundProfile,defaultKeyStatistics,summaryDetail" : "summaryDetail,defaultKeyStatistics,financialData,calendarEvents,incomeStatementHistory,price";
+for (const [sym, , type] of LIST) {
+  const mods = type === "fond" ? "fundProfile,defaultKeyStatistics,summaryDetail" : "summaryDetail,defaultKeyStatistics,financialData,calendarEvents,incomeStatementHistory,assetProfile";
   try {
     const r = await fetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(sym)}?modules=${mods}&crumb=${encodeURIComponent(s.crumb)}`, { headers: { "User-Agent": UA, Cookie: s.cookies } });
     if (!r.ok) throw new Error(r.status);
@@ -36,13 +48,14 @@ for (const [sym, , type] of U.instruments) {
     if (type === "fond") {
       out[sym] = {
         ter: raw(x.fundProfile?.feesExpensesInvestment?.annualReportExpenseRatio),
-        kategori: x.fundProfile?.categoryName || null,
+        kategori: x.fundProfile?.categoryName || null, sektor: "Fond",
         forvalter: x.fundProfile?.family || null,
         storrelse: raw(x.defaultKeyStatistics?.totalAssets) ?? raw(x.summaryDetail?.totalAssets),
       };
     } else {
       const sd = x.summaryDetail || {}, fd = x.financialData || {}, ks = x.defaultKeyStatistics || {}, ce = x.calendarEvents || {};
       out[sym] = {
+        sektor: sector(x.assetProfile), bransje: x.assetProfile?.industry || null,
         pe: raw(sd.trailingPE), fpe: raw(sd.forwardPE), dy: raw(sd.dividendYield) ?? raw(sd.trailingAnnualDividendYield),
         mcap: raw(sd.marketCap), beta: raw(sd.beta), pb: raw(ks.priceToBook), eps: raw(ks.trailingEps), evEbitda: raw(ks.enterpriseToEbitda),
         rev: raw(fd.totalRevenue), revG: raw(fd.revenueGrowth), earnG: raw(fd.earningsGrowth), margin: raw(fd.profitMargins),
@@ -61,4 +74,4 @@ for (const [sym, , type] of U.instruments) {
   await sleep(350);
 }
 await writeJson("fund.json", { updated: new Date().toISOString(), f: out });
-console.log(`Nøkkeltall: ${ok} av ${U.instruments.length}`);
+console.log(`Nøkkeltall: ${ok} av ${LIST.length}`);

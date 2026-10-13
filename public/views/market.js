@@ -1,4 +1,4 @@
-import { $, D, esc, nf2, pct, pctPlain, cls, label, spark, isWatched, toggleWatch, hist } from "../core.js";
+import { $, D, S, esc, nf2, pct, pctPlain, cls, label, spark, isWatched, toggleWatch, hist, commit, toast } from "../core.js";
 import { annualized, volatility, maxDrawdown, weekly, correlation } from "../lib/stats.js";
 
 // ---------- makro ----------
@@ -39,18 +39,27 @@ export function macroTile(key) {
 }
 
 // ---------- marked ----------
-let mFilter = "alle", mQuery = "", mSort = { k: null, dir: -1 };
+let mShow = 100, mFilter = "alle", mQuery = "", mSek = "", mSort = { k: null, dir: -1 };
+const isExtra = s => !!S.P.extra?.[s]?.on;
 export function renderMarket() {
   const tiles = ["brent", "usdnok", "eurnok", "rente", "laks", "strom"].map(macroTile).join("");
   $("macro").innerHTML = tiles;
   $("macro").hidden = !tiles;
   const rows = Object.entries(D.Q.q);
   if (!rows.length) { $("mkt").innerHTML = `<tr><td colspan="8" class="empty">Ingen kurser ennå. Kjør «Oppdater data» i GitHub Actions én gang, så fylles listen.</td></tr>`; return; }
+  // sektorvalg
+  const sel = $("msek"), secs = [...new Set(rows.map(([, q]) => q.sektor || "Annet"))].sort((a, b) => a.localeCompare(b, "nb"));
+  if (sel.options.length - 1 !== secs.length) sel.innerHTML = `<option value="">Alle sektorer</option>` + secs.map(s => `<option ${s === mSek ? "selected" : ""}>${esc(s)}</option>`).join("");
   let list = rows.filter(([s, q]) =>
-    (mFilter === "alle" || (mFilter === "følger" ? isWatched(s) : q.type === mFilter)) &&
+    (mFilter === "alle" || (mFilter === "følger" ? isWatched(s) : mFilter === "ekstra" ? isExtra(s) : q.type === mFilter)) &&
+    (!mSek || (q.sektor || "Annet") === mSek) &&
     (!mQuery || `${s} ${q.navn} ${q.sektor}`.toLowerCase().includes(mQuery)));
+  // papirer lagt til i appen som ennå ikke har data
+  const pending = Object.entries(S.P.extra || {}).filter(([s, e]) => e?.on && !D.Q.q[s]);
   if (mSort.k) list.sort((a, b) => ((a[1][mSort.k] ?? -1e9) - (b[1][mSort.k] ?? -1e9)) * mSort.dir);
-  $("mkt").innerHTML = list.length ? list.map(([s, q]) => {
+  $("mcount").textContent = `${list.length} av ${rows.length}`;
+  const pend = (mFilter === "alle" || mFilter === "ekstra") ? pending.map(([s, e]) => `<tr class="pending"><td></td><td class="nm"><div class="who"><span>${esc(e.navn)}</span><small>${esc(s)} · venter på første datahenting</small></div></td><td colspan="6" class="note">Kommer med neste time på hverdager</td></tr>`).join("") : "";
+  $("mkt").innerHTML = pend + (list.length ? list.slice(0, mShow).map(([s, q]) => {
     const dots = (q.sig || []).slice(0, 5).map(([tone, t]) => `<i class="${tone}" title="${esc(t)}"></i>`).join("");
     const r = q.rsi;
     return `<tr class="click" data-s="${esc(s)}" tabindex="0">
@@ -63,7 +72,8 @@ export function renderMarket() {
       <td>${r != null ? `<span class="rsi"><span class="track"><b style="left:calc(${r.toFixed(0)}% - 1px)"></b></span><span class="num note">${r.toFixed(0)}</span></span>` : "–"}</td>
       <td><span class="dots">${dots}</span></td>
     </tr>`;
-  }).join("") : `<tr><td colspan="8" class="empty">Ingen treff.</td></tr>`;
+  }).join("") + (list.length > mShow ? `<tr><td colspan="8"><button class="go ghost" id="more" type="button">Vis flere (${list.length - mShow} til)</button></td></tr>` : "") : pend ? "" : `<tr><td colspan="8" class="empty">Ingen treff.</td></tr>`);
+  if ($("more")) $("more").onclick = () => { mShow += 100; renderMarket(); };
   document.querySelectorAll("#mkt tr.click").forEach(tr => {
     const go = e => { if (e.target.closest(".star")) return; location.hash = "aksje/" + encodeURIComponent(tr.dataset.s); };
     tr.addEventListener("click", go);
@@ -80,7 +90,12 @@ export function initMarket() {
     document.querySelectorAll(".chip[data-m]").forEach(x => x.setAttribute("aria-pressed", x === b));
     renderMarket();
   }));
-  $("mq").addEventListener("input", e => { mQuery = e.target.value.trim().toLowerCase(); renderMarket(); });
+  $("mq").addEventListener("input", e => { mQuery = e.target.value.trim().toLowerCase(); mShow = 100; renderMarket(); });
+  $("msek").addEventListener("change", e => { mSek = e.target.value; mShow = 100; renderMarket(); });
+  $("addbtn").addEventListener("click", () => { $("addpanel").hidden = !$("addpanel").hidden; if (!$("addpanel").hidden) $("addq").focus(); });
+  const go = () => search($("addq").value.trim());
+  $("addgo").addEventListener("click", go);
+  $("addq").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
   document.querySelectorAll("th[data-sort]").forEach(th => {
     th.style.cursor = "pointer"; th.title = "Sorter";
     th.addEventListener("click", () => { mSort = { k: th.dataset.sort, dir: mSort.k === th.dataset.sort ? -mSort.dir : -1 }; renderMarket(); });
@@ -117,3 +132,31 @@ async function renderFundCompare() {
     <div class="pad"><p class="note" style="margin:0">«Svingninger» er årlig volatilitet: hvor mye kursen typisk svinger. «Likhet med indeks» er korrelasjonen med KLP-indeksfondet for samme region. Et aktivt fond som er over 95 % likt indeksen, men koster over 0,8 % i året, gir deg omtrent indeksen til høy pris. Historisk avkastning er ingen garanti for fremtiden.</p></div>`;
   box.querySelectorAll("tr.click").forEach(tr => tr.onclick = () => { location.hash = "aksje/" + encodeURIComponent(tr.dataset.s); });
 }
+
+// ---------- legg til eget papir ----------
+async function search(q) {
+  const box = $("addres");
+  if (q.length < 2) { box.innerHTML = ""; return; }
+  if (!S.pin) { box.innerHTML = `<div class="msg err">Legg inn PIN under Oppsett først. Søket går via din Netlify-funksjon.</div>`; return; }
+  box.innerHTML = `<div class="note">Søker …</div>`;
+  try {
+    const r = await fetch(`/api/sok?q=${encodeURIComponent(q)}`, { headers: { "x-pin": S.pin } });
+    if (r.status === 401) throw new Error("Feil PIN");
+    if (!r.ok) throw new Error("Søket feilet");
+    const { list } = await r.json();
+    box.innerHTML = list.length ? `<div class="addres">${list.map((x, i) => {
+      const have = D.Q.q[x.sym] || S.P.extra?.[x.sym]?.on;
+      return `<div class="addrow"><span>${esc(x.navn)}<small>${esc(x.sym)} · ${esc(x.bors)} · ${x.kind === "ETF" ? "ETF" : x.type === "fond" ? "fond" : "aksje"}</small></span>
+        ${have ? `<span class="note">Allerede med</span>` : `<button class="chip" type="button" data-i="${i}">+ Legg til</button>`}</div>`;
+    }).join("")}</div>` : `<div class="note">Ingen treff. Prøv engelsk navn eller ticker.</div>`;
+    box.querySelectorAll("[data-i]").forEach(b => b.onclick = () => {
+      const x = list[+b.dataset.i], t = new Date().toISOString();
+      S.P.extra ||= {}; S.P.extra[x.sym] = { on: true, navn: x.navn, type: x.type, t };
+      S.P.watch ||= {}; S.P.watch[x.sym] = { on: true, t };
+      commit(); toast(`${x.navn} er lagt til og kommer med i neste datahenting`);
+      b.replaceWith(Object.assign(document.createElement("span"), { className: "note", textContent: "Lagt til" }));
+      renderMarket();
+    });
+  } catch (e) { box.innerHTML = `<div class="msg err">${esc(e.message)}. Sjekk PIN under Oppsett.</div>`; }
+}
+export function removeExtra(sym) { if (S.P.extra?.[sym]) { S.P.extra[sym] = { ...S.P.extra[sym], on: false, t: new Date().toISOString() }; commit(); } }

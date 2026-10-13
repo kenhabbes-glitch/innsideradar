@@ -7,7 +7,7 @@ Appen er et læringsverktøy for aksjer og fond på Oslo Børs. Den viser innsid
 | Fane | Innhold |
 |---|---|
 | **Radar** | Innsidehandel, mest shortede aksjer, og «dragkamp» (selskaper der innsidere kjøper mens fond shorter) |
-| **Marked** | Makrostripe (olje, USD/NOK, EUR/NOK, styringsrente, laks, strøm), 53 aksjer og 9 fond med signaler. Filteret «Fond» viser også en sammenligning av kostnad, avkastning over 1, 3 og 5 år, svingninger, største fall og likhet med indeks |
+| **Marked** | Makrostripe (olje, USD/NOK, EUR/NOK, styringsrente, laks, strøm), alle aksjer på Oslo Børs, Euronext Expand og Euronext Growth (ca. 300), 9 fond og papirer du legger til selv (aksjer, ETF-er og fond fra hele verden). Filter på sektor. Filteret «Fond» viser også en sammenligning av kostnad, avkastning over 1, 3 og 5 år, svingninger, største fall og likhet med indeks |
 | **Aksjeside** | Se egen tabell under |
 | **Portefølje** | Se egen tabell under |
 | **Trening** | Blindtest på historiske grafer (med statistikk over egne gjetninger og over hvor ofte signalene traff), oversikt over quizene, sparekalkulator (hva kostnader koster deg over tid) og en ASK-modell |
@@ -57,11 +57,25 @@ Appen er et læringsverktøy for aksjer og fond på Oslo Børs. Den viser innsid
 2. Velg **Slå på varsler på denne enheten**, og deretter **Send testvarsel**.
 3. På iPhone må appen først være lagt til på Hjem-skjermen før varsler kan slås på.
 
+## Hvor dataene lagres
+
+- **Grenen `data`:** GitHub Actions lagrer dataene her. Grenen overskrives hver gang, så repoet vokser ikke.
+- **Appen:** leser dataene direkte fra `raw.githubusercontent.com/<bruker>/innsideradar/data/public/data/`. Netlify publiserer derfor ikke på nytt ved dataoppdatering, og det koster ingen credits.
+- **Annet repo- eller brukernavn:** endre `REPO` i `public/datasource.js` og standardadressen i `netlify/functions/varsler.mjs`.
+- **Repoet må være offentlig** for at appen skal kunne lese dataene.
+
+## Papirer du legger til selv
+
+- **Krever variabel:** GitHub-variabelen `SITE_URL` må være satt, under *Settings → Secrets and variables → Actions → Variables*, for eksempel `https://innsideradar-kenneth.netlify.app`.
+- **Slik henger det sammen:** appen lagrer listen i Netlify. Actions henter den fra `/api/ekstra` og tar papirene med i neste kjøring.
+- **Valuta:** kurser i andre valutaer regnes om til kroner i porteføljen med dagens valutakurs fra Yahoo.
+
 ## Datakilder
 
 | Hva | Kilde | Hvor ofte |
 |---|---|---|
-| Kurser | Yahoo Finance (aksjer 2 år, fond 5 år) | Hver time på hverdager |
+| Aksjeliste for Oslo Børs | Euronext (CSV) | Én gang i uken |
+| Kurser | Yahoo Finance (aksjer 2 år, fond 5 år, deretter bare nye dager) | Hver time på hverdager |
 | Innsidehandel | Newsweb, Oslo Børs | Hver time |
 | Short | Finanstilsynet | Hver time |
 | Nøkkeltall, rapportdatoer og fondskostnad | Yahoo Finance | Én gang i døgnet |

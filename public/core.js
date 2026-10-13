@@ -68,12 +68,15 @@ export async function news(sym) {
   return newsCache[sym];
 }
 export const price = sym => D.Q.q[sym]?.last ?? null;
+// Valutakurs til NOK (1 for papirer i kroner) og kurs omregnet til kroner
+export const fxOf = sym => D.Q.q[sym]?.fx ?? 1;
+export const priceNok = sym => (price(sym) == null ? null : price(sym) * fxOf(sym));
 export function closeAt(bars, d) { let c = null; for (const b of bars) { if (b.t > d) break; c = b.c; } return c ?? bars[0]?.c ?? null; }
 
 // ---------- portefølje ----------
-export const DEF = () => ({ startCash: 100000, trades: [], watch: {}, orders: {}, practice: { log: [] }, quiz: {}, resetAt: new Date().toISOString(), fee: { pct: 0.0005, min: 29 }, updated: new Date().toISOString() });
+export const DEF = () => ({ startCash: 100000, trades: [], watch: {}, orders: {}, extra: {}, practice: { log: [] }, quiz: {}, resetAt: new Date().toISOString(), fee: { pct: 0.0005, min: 29 }, updated: new Date().toISOString() });
 export const S = { P: LS.get("ir.p", null) || DEF(), pin: LS.get("ir.pin", ""), sync: { state: "lokal", msg: "Lagret lokalt" } };
-S.P.orders ||= {}; S.P.practice ||= { log: [] }; S.P.quiz ||= {};
+S.P.orders ||= {}; S.P.extra ||= {}; S.P.practice ||= { log: [] }; S.P.quiz ||= {};
 
 export const book = upTo => bookOf(S.P, upTo);
 export const fee = (val, type) => (type === "fond" ? 0 : Math.max(S.P.fee.min, val * S.P.fee.pct));
@@ -81,7 +84,7 @@ export const isWatched = sym => !!S.P.watch?.[sym]?.on;
 export function toggleWatch(sym) { S.P.watch ||= {}; S.P.watch[sym] = { on: !isWatched(sym), t: new Date().toISOString() }; commit(); }
 export function totalValue() {
   const b = book();
-  return b.cash + Object.values(b.pos).reduce((a, p) => a + p.qty * (price(p.sym) ?? (p.qty ? p.cost / p.qty : 0)), 0);
+  return b.cash + Object.values(b.pos).reduce((a, p) => a + p.qty * (priceNok(p.sym) ?? (p.qty ? p.cost / p.qty : 0)), 0);
 }
 
 function setSync(state, msg) {

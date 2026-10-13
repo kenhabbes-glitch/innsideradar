@@ -12,8 +12,10 @@ export function merge(a, b) {
   for (const [k, v] of Object.entries(b.watch || {})) if (!watch[k] || (v.t || "") > (watch[k].t || "")) watch[k] = v;
   const orders = { ...(a.orders || {}) };
   for (const [k, v] of Object.entries(b.orders || {})) if (!orders[k] || (v.t || "") > (orders[k].t || "")) orders[k] = v;
+  const extra = { ...(a.extra || {}) };
+  for (const [k, v] of Object.entries(b.extra || {})) if (!extra[k] || (v.t || "") > (extra[k].t || "")) extra[k] = v;
   const newer = (b.updated || "") >= (a.updated || "") ? b : a;
-  return { ...newer, trades, watch, orders, practice: mergePractice(a.practice, b.practice), quiz: { ...(a.quiz || {}), ...(b.quiz || {}) } };
+  return { ...newer, trades, watch, orders, extra, practice: mergePractice(a.practice, b.practice), quiz: { ...(a.quiz || {}), ...(b.quiz || {}) } };
 }
 function mergePractice(a, b) {
   const m = new Map();

@@ -1,4 +1,4 @@
-import { $, D, S, esc, nf2, nf4, kr, pct, pctPlain, cls, label, dmy, today, daysBetween, toneIcon, hist, closeAt, price, book, totalValue, commit, toast } from "../core.js";
+import { $, D, S, esc, nf2, nf4, kr, pct, pctPlain, cls, label, dmy, today, daysBetween, toneIcon, hist, closeAt, price, priceNok, fxOf, book, totalValue, commit, toast } from "../core.js";
 import { lineChart } from "../lib/chart.js";
 import { alerts } from "../lib/alerts.js";
 import { activeOrders } from "../lib/portfolio.js";
@@ -42,8 +42,8 @@ export async function renderPortfolio() {
       <section class="panel"><div class="ph"><h2><em>■</em>Beholdning</h2><a class="src" href="#marked">Finn noe å kjøpe →</a></div>
         <div class="tbl"><table><thead><tr><th>Navn</th><th class="r">Verdi</th><th class="r">Avkastning</th><th class="r">Andel</th><th class="r">Stop / mål</th></tr></thead><tbody>
         ${holdings.length ? holdings.map(p => {
-          const px = price(p.sym), v = p.qty * (px ?? 0), r = v - p.cost, share = v / tv, q = D.Q.q[p.sym] || {}, o = orders[p.sym];
-          return `<tr class="click" data-s="${esc(p.sym)}" tabindex="0"><td><div class="who"><span>${label(p.sym) ? `<span class="tk">${esc(label(p.sym))}</span> ` : ""}${esc(q.navn || p.sym)}</span><small>${nf4.format(p.qty)} stk · snitt ${nf2.format(p.cost / p.qty)} · nå ${px != null ? nf2.format(px) : "–"}</small></div></td>
+          const px = price(p.sym), v = p.qty * (priceNok(p.sym) ?? 0), r = v - p.cost, share = v / tv, q = D.Q.q[p.sym] || {}, o = orders[p.sym];
+          return `<tr class="click" data-s="${esc(p.sym)}" tabindex="0"><td><div class="who"><span>${label(p.sym) ? `<span class="tk">${esc(label(p.sym))}</span> ` : ""}${esc(q.navn || p.sym)}</span><small>${nf4.format(p.qty)} stk · snitt ${nf2.format(p.cost / p.qty)} kr · nå ${px != null ? nf2.format(px) + (q.cur && q.cur !== "NOK" ? " " + esc(q.cur) : "") : "–"}</small></div></td>
             <td class="r num">${kr(v)}</td><td class="r num ${cls(r)}">${kr(r)}<br><small>${pct(v / p.cost - 1)}</small></td>
             <td class="r num" ${share > 0.1 ? `style="color:var(--amber)" title="Over 10 % i én posisjon"` : ""}>${(share * 100).toFixed(0)} %</td>
             <td class="r num note">${o ? `${o.stop ? nf2.format(o.stop) : "–"} / ${o.target ? nf2.format(o.target) : "–"}` : `<span style="color:var(--amber)" title="Ingen stop-loss">ingen</span>`}</td></tr>`;
@@ -131,7 +131,7 @@ function upcoming() {
 // ---------- fordeling ----------
 function renderAlloc(holdings, tv, cash) {
   const by = {};
-  for (const p of holdings) { const s = D.Q.q[p.sym]?.sektor || "Annet"; by[s] = (by[s] || 0) + p.qty * (price(p.sym) ?? 0); }
+  for (const p of holdings) { const s = D.Q.q[p.sym]?.sektor || "Annet"; by[s] = (by[s] || 0) + p.qty * (priceNok(p.sym) ?? 0); }
   by["Kontanter"] = cash;
   const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
   const warn = rows.filter(([s, v]) => s !== "Kontanter" && v / tv > 0.3);
@@ -187,7 +187,7 @@ async function drawEquity(bmBars) {
   for (const d of dates) {
     const bk = book(d);
     let v = bk.cash;
-    for (const p of Object.values(bk.pos)) if (p.qty) v += p.qty * ((d === td ? price(p.sym) : closeAt(H[p.sym] || [], d)) ?? p.cost / p.qty);
+    for (const p of Object.values(bk.pos)) if (p.qty) v += p.qty * ((d === td ? priceNok(p.sym) : (closeAt(H[p.sym] || [], d) ?? NaN) * fxOf(p.sym)) || p.cost / p.qty);
     mine.push([d, v]);
     const bc = d === td ? price(bm) ?? closeAt(bmBars, d) : closeAt(bmBars, d);
     if (bm0 && bc) idx.push([d, P.startCash * bc / bm0]);

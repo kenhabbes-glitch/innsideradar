@@ -228,6 +228,16 @@ details.lesson[open] summary{border-bottom:1px solid var(--line);background:var(
 .patgrid b{font-size:13.5px}
 
 
+/* ---------- v5 ---------- */
+#msek{font:12px var(--ui);background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:6px 8px;max-width:160px}
+.chip.add{color:var(--amber);border-color:var(--amber)}
+.addpanel{display:grid;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.addpanel input{font:14px var(--ui);background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:9px 10px;flex:1;min-width:0}
+.addres{display:grid}
+.addrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.addrow small{display:block;color:var(--dim)}
+tr.pending td{color:var(--dim)}
+.mcount{font:11px var(--mono);color:var(--dim)}
 /* ---------- v4 ---------- */
 @media (max-width:1000px){
   .cols>.stack:first-child{display:contents}
@@ -360,14 +370,23 @@ details.risk[open]{display:grid;gap:10px}
     <section class="kpis macro" id="macro" aria-label="Makro" hidden></section>
     <section class="panel">
       <div class="ph">
-        <h2><em>◧</em>Marked</h2>
+        <h2><em>◧</em>Marked <span class="mcount" id="mcount"></span></h2>
         <div class="ctl" role="group" aria-label="Filter marked">
           <button class="chip" data-m="alle" aria-pressed="true">Alle</button>
           <button class="chip" data-m="aksje" aria-pressed="false">Aksjer</button>
           <button class="chip" data-m="fond" aria-pressed="false">Fond</button>
           <button class="chip" data-m="følger" aria-pressed="false">★ Følger</button>
-          <input type="search" id="mq" placeholder="Søk" aria-label="Søk i marked">
+          <button class="chip" data-m="ekstra" aria-pressed="false">Mine</button>
+          <select id="msek" aria-label="Sektor"><option value="">Alle sektorer</option></select>
+          <input type="search" id="mq" placeholder="Søk navn eller ticker" aria-label="Søk i marked">
+          <button class="chip add" id="addbtn" type="button">+ Legg til</button>
         </div>
+      </div>
+      <div class="addpanel" id="addpanel" hidden>
+        <div class="field"><label for="addq">Finn aksje, ETF eller fond (hele verden)</label>
+          <div class="row"><input id="addq" type="search" placeholder="f.eks. Nvidia, Novo Nordisk, S&amp;P 500, KLP" autocomplete="off"><button class="go ghost" id="addgo" type="button">Søk</button></div></div>
+        <div id="addres"></div>
+        <p class="note" style="margin:0">Alle aksjer på Oslo Børs, Euronext Expand og Euronext Growth er allerede med. Papirer du legger til her, hentes ved neste datahenting (innen en time på hverdager). Krever PIN under Oppsett.</p>
       </div>
       <div class="tbl">
         <table class="mkt">

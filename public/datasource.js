@@ -4,7 +4,7 @@
 // Endre REPO hvis repoet får et annet navn eller ligger under en annen bruker.
 (function () {
   var REPO = "kenhabbes-glitch/innsideradar";
-  var BRANCH = "main";
+  var BRANCH = "data";
   var REMOTE = "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/public/data/";
   var local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   // Henter fra GitHub, og faller tilbake til kopien som ligger i selve Netlify-publiseringen.

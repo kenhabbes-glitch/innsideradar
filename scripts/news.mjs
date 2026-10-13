@@ -1,16 +1,16 @@
 // Henter børsmeldinger per selskap fra Newsweb (siste 2 år), brukt i «Hva skjedde her?».
 // Kjøres én gang per døgn. Skriver public/data/news/<SYMBOL>.json = [[dato, tittel, kategori, id], ...]
-import { universe, writeJson, fresh, getJson, sleep, safe } from "./lib.mjs";
+import { allInstruments, writeJson, fresh, getJson, sleep, safe } from "./lib.mjs";
 
 if (await fresh("news/_meta.json", 20) && !process.env.FORCE) { console.log("Børsmeldinger: ferske, hopper over"); process.exit(0); }
 
-const U = await universe();
+const LIST = await allInstruments();
 const iso = d => d.toISOString().slice(0, 10);
 const now = new Date();
 const ranges = [[new Date(now - 365 * 864e5), now], [new Date(now - 730 * 864e5), new Date(now - 365 * 864e5)]];
 let ok = 0;
-for (const [sym, , type] of U.instruments) {
-  if (type !== "aksje") continue;
+for (const [sym, , type] of LIST) {
+  if (type !== "aksje" || !sym.endsWith(".OL")) continue;
   const sign = sym.replace(/\.OL$/, "");
   try {
     const rows = [];
