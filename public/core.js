@@ -75,8 +75,7 @@ export function closeAt(bars, d) { let c = null; for (const b of bars) { if (b.t
 
 // ---------- portefølje ----------
 export const DEF = () => ({ startCash: 100000, trades: [], watch: {}, orders: {}, extra: {}, practice: { log: [] }, quiz: {}, resetAt: new Date().toISOString(), fee: { pct: 0.0005, min: 29 }, updated: new Date().toISOString() });
-export const S = { P: LS.get("ir.p", null) || DEF(), pin: LS.get("ir.pin", ""), sync: { state: "lokal", msg: "Lagret lokalt" } };
-S.P.orders ||= {}; S.P.extra ||= {}; S.P.practice ||= { log: [] }; S.P.quiz ||= {};
+export const S = { P: DEF(), sync: { state: "lokal", msg: "Logger inn …" } };
 
 export const book = upTo => bookOf(S.P, upTo);
 export const fee = (val, type) => (type === "fond" ? 0 : Math.max(S.P.fee.min, val * S.P.fee.pct));
@@ -92,33 +91,66 @@ function setSync(state, msg) {
   const b = $("sync");
   if (b) { b.className = "sync " + (state === "ok" ? "ok" : state === "err" ? "err" : ""); b.innerHTML = `<b>●</b> ${esc(msg)}`; }
 }
-export async function pull() {
-  if (!S.pin) return setSync("lokal", "Lagret lokalt");
+
+// ---------- innlogging (Netlify Identity, som i SofaPilot) ----------
+const ID = "/.netlify/identity";
+export const AUTH = { user: null, admin: false, profile: null };
+export function saveSession(t) { LS.set("ir.auth", { access_token: t.access_token, refresh_token: t.refresh_token, expires_at: Date.now() + (t.expires_in || 3600) * 1000 }); }
+export function clearSession() { LS.set("ir.auth", null); AUTH.user = null; AUTH.admin = false; }
+export async function accessToken() {
+  const a = LS.get("ir.auth", null); if (!a) return null;
+  if (Date.now() < a.expires_at - 60000) return a.access_token;
   try {
-    const r = await fetch("/api/portefolje", { headers: { "x-pin": S.pin } });
-    if (r.status === 401) return setSync("err", "Feil PIN");
-    if (!r.ok) throw new Error(r.status);
-    const s = await r.json();
-    if (s) { S.P = merge(S.P, s); LS.set("ir.p", S.P); }
+    const r = await fetch(ID + "/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: a.refresh_token }) });
+    if (r.ok) { const t = await r.json(); saveSession(t); return t.access_token; }
+  } catch { /* offline */ }
+  LS.set("ir.auth", null); return null;
+}
+export async function api(path, opts = {}) {
+  const t = await accessToken();
+  const headers = { ...(opts.headers || {}) };
+  if (t) headers.Authorization = "Bearer " + t;
+  if (opts.json !== undefined) { headers["content-type"] = "application/json"; opts = { ...opts, body: JSON.stringify(opts.json) }; }
+  const r = await fetch("/api/" + path, { ...opts, headers });
+  if (r.status === 401) { clearSession(); window.dispatchEvent(new Event("ir-logout")); throw new Error("Du må logge inn"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Noe gikk galt (" + r.status + ")");
+  return j;
+}
+// Hver bruker har sin egen lokale kopi på enheten
+const pkey = () => "ir.p." + (AUTH.user || "lokal");
+export function loadLocal() { S.P = LS.get(pkey(), null) || LS.get("ir.p", null) || DEF(); S.P.orders ||= {}; S.P.extra ||= {}; S.P.practice ||= { log: [] }; S.P.quiz ||= {}; }
+
+// Kort oppsummering til topplisten
+export async function summary() {
+  const P = S.P, start = P.resetAt.slice(0, 10), tv = totalValue(), ret = tv / P.startCash - 1;
+  let bmRet = null;
+  try { const bm = await hist(D.Q.benchmark); const b0 = bm.find(x => x.t >= start)?.c; const b1 = price(D.Q.benchmark) ?? bm[bm.length - 1]?.c; if (b0 && b1) bmRet = b1 / b0 - 1; } catch { /* mangler */ }
+  const b = book(), log = P.practice?.log || [];
+  return { start, tv, ret, bmRet, alpha: bmRet == null ? null : ret - bmRet, handler: P.trades.length, posisjoner: Object.values(b.pos).filter(p => p.qty > 0).length,
+    blindtest: log.length ? log.filter(r => r.guess === r.actual).length / log.length : null, blindN: log.length, quiz: Object.keys(P.quiz || {}).length };
+}
+export async function pull() {
+  if (!AUTH.user) return;
+  try {
+    const { data } = await api("me/portfolio");
+    if (data) { S.P = merge(S.P, data); LS.set(pkey(), S.P); }
     setSync("ok", "Synkronisert");
-  } catch { setSync("err", "Ikke synket"); }
+  } catch (e) { setSync("err", e.message === "Du må logge inn" ? "Logget ut" : "Ikke synket"); }
 }
 export async function push() {
-  if (!S.pin) return setSync("lokal", "Lagret lokalt");
+  if (!AUTH.user) return;
   try {
-    const r = await fetch("/api/portefolje", { method: "PUT", headers: { "x-pin": S.pin, "content-type": "application/json" }, body: JSON.stringify(S.P) });
-    if (r.status === 401) return setSync("err", "Feil PIN");
-    if (!r.ok) throw new Error(r.status);
-    S.P = await r.json(); LS.set("ir.p", S.P);
+    const { data } = await api("me/portfolio", { method: "PUT", json: { ...S.P, summary: await summary() } });
+    if (data) { S.P = data; LS.set(pkey(), S.P); }
     setSync("ok", "Synkronisert");
   } catch { setSync("err", "Ikke synket – prøver igjen"); }
 }
 let pushT;
 export function commit() {
-  S.P.updated = new Date().toISOString(); LS.set("ir.p", S.P); setSync("lokal", "Lagrer …");
+  S.P.updated = new Date().toISOString(); LS.set(pkey(), S.P); setSync("lokal", "Lagrer …");
   clearTimeout(pushT); pushT = setTimeout(push, 400);
 }
-export function setPin(p) { S.pin = p; LS.set("ir.pin", p); }
 
 // Utfører stop-loss og kursmål som er nådd siden sist
 export async function applyOrders() {

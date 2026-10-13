@@ -1,4 +1,4 @@
-import { $, D, S, esc, nf2, pct, pctPlain, cls, label, spark, isWatched, toggleWatch, hist, commit, toast } from "../core.js";
+import { $, D, S, esc, nf2, pct, pctPlain, cls, label, spark, isWatched, toggleWatch, hist, commit, toast, api } from "../core.js";
 import { annualized, volatility, maxDrawdown, weekly, correlation } from "../lib/stats.js";
 
 // ---------- makro ----------
@@ -137,13 +137,9 @@ async function renderFundCompare() {
 async function search(q) {
   const box = $("addres");
   if (q.length < 2) { box.innerHTML = ""; return; }
-  if (!S.pin) { box.innerHTML = `<div class="msg err">Legg inn PIN under Oppsett først. Søket går via din Netlify-funksjon.</div>`; return; }
   box.innerHTML = `<div class="note">Søker …</div>`;
   try {
-    const r = await fetch(`/api/sok?q=${encodeURIComponent(q)}`, { headers: { "x-pin": S.pin } });
-    if (r.status === 401) throw new Error("Feil PIN");
-    if (!r.ok) throw new Error("Søket feilet");
-    const { list } = await r.json();
+    const { list } = await api(`sok?q=${encodeURIComponent(q)}`);
     box.innerHTML = list.length ? `<div class="addres">${list.map((x, i) => {
       const have = D.Q.q[x.sym] || S.P.extra?.[x.sym]?.on;
       return `<div class="addrow"><span>${esc(x.navn)}<small>${esc(x.sym)} · ${esc(x.bors)} · ${x.kind === "ETF" ? "ETF" : x.type === "fond" ? "fond" : "aksje"}</small></span>
@@ -157,6 +153,6 @@ async function search(q) {
       b.replaceWith(Object.assign(document.createElement("span"), { className: "note", textContent: "Lagt til" }));
       renderMarket();
     });
-  } catch (e) { box.innerHTML = `<div class="msg err">${esc(e.message)}. Sjekk PIN under Oppsett.</div>`; }
+  } catch (e) { box.innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
 }
 export function removeExtra(sym) { if (S.P.extra?.[sym]) { S.P.extra[sym] = { ...S.P.extra[sym], on: false, t: new Date().toISOString() }; commit(); } }

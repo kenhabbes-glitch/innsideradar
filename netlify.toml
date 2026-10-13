@@ -18,3 +18,10 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+# /api/... går til server-funksjonen (samme oppsett som SofaPilot)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true

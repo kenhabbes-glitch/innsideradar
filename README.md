@@ -12,7 +12,8 @@ Appen er et læringsverktøy for aksjer og fond på Oslo Børs. Den viser innsid
 | **Portefølje** | Se egen tabell under |
 | **Trening** | Blindtest på historiske grafer (med statistikk over egne gjetninger og over hvor ofte signalene traff), oversikt over quizene, sparekalkulator (hva kostnader koster deg over tid) og en ASK-modell |
 | **Skole** | 11 leksjoner med quiz |
-| **Oppsett** | PIN for synk, push-varsler, kurtasje og ny start |
+| **Gruppe** | Toppliste og felles feed med handler og begrunnelser |
+| **Oppsett** | Navn og deling, brukere (admin), push-varsler, kurtasje og ny start |
 
 **Aksjeside:**
 
@@ -56,6 +57,28 @@ Appen er et læringsverktøy for aksjer og fond på Oslo Børs. Den viser innsid
 1. Gå til **Oppsett** og skriv inn PIN.
 2. Velg **Slå på varsler på denne enheten**, og deretter **Send testvarsel**.
 3. På iPhone må appen først være lagt til på Hjem-skjermen før varsler kan slås på.
+
+
+## Brukere og innlogging (samme oppsett som SofaPilot)
+
+Appen krever innlogging med Netlify Identity. Bare personer du inviterer, kommer inn. Hver bruker har sin egen portefølje, journal, quiz og blindtest.
+
+**Oppsett (én gang):**
+
+1. Netlify: **Project configuration → Identity**. Slå på Identity, og velg **Invite only** under Registration.
+2. Gå til **Environment variables** og legg inn `ADMIN_EMAILS` med e-postadressen din. Flere adresser skilles med komma. De som står her, er alltid admin. `APP_PIN` trengs ikke lenger og kan slettes.
+3. Publiser på nytt: **Deploys → Trigger deploy**.
+4. Åpne appen og velg **Glemt passord?** med e-postadressen din, eller inviter deg selv under **Identity → Invite users** i Netlify. Lag passord via lenken i e-posten.
+
+**Invitere andre:** gå til **Oppsett → Brukere** i appen og skriv inn e-postadressen. Den inviterte får en e-post, trykker på lenken, velger passord og er inne. Samme sted kan du sende invitasjonen på nytt, gjøre andre til admin eller fjerne tilgang.
+
+**Gruppe-fanen:**
+
+- **Toppliste:** avkastning mot indeksfondet, avkastning, verdi, antall handler, treffprosent i blindtest og antall quizer.
+- **Feed:** kjøp og salg med begrunnelser de siste 60 dagene.
+- **Deling:** hver bruker velger selv under **Oppsett → Deg** om de vises på topplisten og i feeden.
+
+**Porteføljen fra PIN-versjonen** flyttes automatisk til den første admin som logger inn.
 
 ## Hvor dataene lagres
 
