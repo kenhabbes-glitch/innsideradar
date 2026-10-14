@@ -20,13 +20,11 @@ jobs:
     env:
       SITE_URL: ${{ vars.SITE_URL }}
     steps:
-            - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
-      # Dataene ligger i en egen gren («data») som overskrives hver gang.
-      # Da vokser ikke repoet, og Netlify publiserer ikke på nytt (det koster credits).
       - name: Hent forrige data
         run: |
           if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
@@ -64,7 +62,6 @@ jobs:
         run: |
           git config user.name "innsideradar-bot"
           git config user.email "actions@users.noreply.github.com"
-          # lag en frittstående commit med bare public/data (egen indeks, rører ikke main)
           export GIT_INDEX_FILE="$RUNNER_TEMP/data-index"
           rm -f "$GIT_INDEX_FILE"
           git add -f public/data
