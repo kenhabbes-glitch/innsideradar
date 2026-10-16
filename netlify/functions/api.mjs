@@ -27,12 +27,21 @@ const isAdmin = u => !!u && ((u.app_metadata?.roles || []).includes("admin") || 
 
 async function idAdmin(context, method, path, body) {
   const id = context.clientContext?.identity;
-  if (!id?.url || !id?.token) throw new Error("Netlify Identity er ikke slått på for prosjektet");
-  const r = await fetch(id.url + path, { method, headers: { Authorization: "Bearer " + id.token, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-  const txt = await r.text();
-  let data = null; try { data = txt ? JSON.parse(txt) : null; } catch { data = { raw: txt }; }
-  if (!r.ok) throw new Error((data && (data.msg || data.error_description || data.error)) || "Identity svarte " + r.status);
-  return data;
+  if (!id?.url) throw new Error("Netlify Identity er ikke slått på for prosjektet");
+  // Prøv først admin-nøkkelen Netlify gir funksjonen. Avvises den (401), prøv med innlogget brukers egen nøkkel.
+  // Det virker når brukeren har rollen «admin» i Netlify Identity.
+  const tokens = [id.token && "Bearer " + id.token, context.__auth].filter(Boolean);
+  let last = 0, msg = "";
+  for (const auth of tokens) {
+    const r = await fetch(id.url + path, { method, headers: { Authorization: auth, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const txt = await r.text();
+    let data = null; try { data = txt ? JSON.parse(txt) : null; } catch { data = { raw: txt }; }
+    if (r.ok) return data;
+    last = r.status; msg = (data && (data.msg || data.error_description || data.error)) || "";
+    if (r.status !== 401 && r.status !== 403) break;
+  }
+  if (last === 401 || last === 403) throw new Error("Netlify Identity avviste adminforespørselen (" + last + (msg ? ": " + msg : "") + "). Gi deg selv rollen «admin» i Netlify under Identity → din bruker → Edit settings → Roles, og prøv igjen.");
+  throw new Error(msg || "Identity svarte " + last);
 }
 
 export async function vapid() {
@@ -76,6 +85,7 @@ export const handler = async (event, context) => {
   }
 
   const user = await currentUser(event, context);
+  context.__auth = event.headers?.authorization || event.headers?.Authorization || "";
   const me = user ? userKey(user.email) : null;
   if (path === "health") return json({ login: true, user: user?.email || null, admin: isAdmin(user), adminConfigured: adminEmails().length > 0 });
   if (!user) return json({ error: "Du må logge inn" }, 401);
