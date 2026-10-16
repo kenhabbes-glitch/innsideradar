@@ -16,7 +16,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function currentUser(event, context) {
   const u = context.clientContext?.user;
   if (u?.email) return u;
-  const auth = event.headers?.authorization || event.headers?.Authorization;
+  const auth = context.__auth;
   const idUrl = context.clientContext?.identity?.url;
   if (auth && idUrl) {
     try { const r = await fetch(idUrl + "/user", { headers: { Authorization: auth } }); if (r.ok) return await r.json(); } catch { /* ugyldig */ }
@@ -28,20 +28,21 @@ const isAdmin = u => !!u && ((u.app_metadata?.roles || []).includes("admin") || 
 async function idAdmin(context, method, path, body) {
   const id = context.clientContext?.identity;
   if (!id?.url) throw new Error("Netlify Identity er ikke slått på for prosjektet");
-  // Prøv først admin-nøkkelen Netlify gir funksjonen. Avvises den (401), prøv med innlogget brukers egen nøkkel.
-  // Det virker når brukeren har rollen «admin» i Netlify Identity.
-  const tokens = [id.token && "Bearer " + id.token, context.__auth].filter(Boolean);
-  let last = 0, msg = "";
-  for (const auth of tokens) {
+  // 1) admin-nøkkelen Netlify gir funksjonen, 2) innlogget brukers egen nøkkel (virker når brukeren har rollen «admin» i Identity)
+  const tries = [["admin-nøkkel", id.token && "Bearer " + id.token], ["din nøkkel", context.__auth]];
+  const log = [];
+  let msg = "";
+  for (const [name, auth] of tries) {
+    if (!auth) { log.push(name + ": mangler"); continue; }
     const r = await fetch(id.url + path, { method, headers: { Authorization: auth, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
     const txt = await r.text();
     let data = null; try { data = txt ? JSON.parse(txt) : null; } catch { data = { raw: txt }; }
     if (r.ok) return data;
-    last = r.status; msg = (data && (data.msg || data.error_description || data.error)) || "";
-    if (r.status !== 401 && r.status !== 403) break;
+    msg = (data && (data.msg || data.error_description || data.error)) || "";
+    log.push(name + ": " + r.status + (msg ? " " + msg : ""));
+    if (r.status !== 401 && r.status !== 403) throw new Error(msg || "Identity svarte " + r.status);
   }
-  if (last === 401 || last === 403) throw new Error("Netlify Identity avviste adminforespørselen (" + last + (msg ? ": " + msg : "") + "). Gi deg selv rollen «admin» i Netlify under Identity → din bruker → Edit settings → Roles, og prøv igjen.");
-  throw new Error(msg || "Identity svarte " + last);
+  throw new Error("Netlify Identity avviste adminforespørselen (" + log.join(" · ") + "). Sjekk at brukeren din har rollen «admin» i Netlify (Identity → brukeren → Edit settings → Roles), logg ut og inn igjen i appen, og prøv på nytt.");
 }
 
 export async function vapid() {
@@ -84,8 +85,10 @@ export const handler = async (event, context) => {
     return json({ list: [...out.values()] });
   }
 
+  const h = event.headers || {};
+  const tok = h["x-ir-token"] || h["X-Ir-Token"];
+  context.__auth = h.authorization || h.Authorization || (tok ? "Bearer " + tok : "");
   const user = await currentUser(event, context);
-  context.__auth = event.headers?.authorization || event.headers?.Authorization || "";
   const me = user ? userKey(user.email) : null;
   if (path === "health") return json({ login: true, user: user?.email || null, admin: isAdmin(user), adminConfigured: adminEmails().length > 0 });
   if (!user) return json({ error: "Du må logge inn" }, 401);

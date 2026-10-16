@@ -109,7 +109,7 @@ export async function accessToken() {
 export async function api(path, opts = {}) {
   const t = await accessToken();
   const headers = { ...(opts.headers || {}) };
-  if (t) headers.Authorization = "Bearer " + t;
+  if (t) { headers.Authorization = "Bearer " + t; headers["x-ir-token"] = t; } // ekstra kopi i tilfelle Netlify fjerner Authorization
   if (opts.json !== undefined) { headers["content-type"] = "application/json"; opts = { ...opts, body: JSON.stringify(opts.json) }; }
   const r = await fetch("/api/" + path, { ...opts, headers });
   if (r.status === 401) { clearSession(); window.dispatchEvent(new Event("ir-logout")); throw new Error("Du må logge inn"); }
