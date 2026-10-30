@@ -6,7 +6,7 @@ import { pushTo } from "./api.mjs";
 export default async () => {
   const base = (process.env.DATA_URL || "https://raw.githubusercontent.com/kenhabbes-glitch/innsideradar/data/public").replace(/\/$/, "");
   const get = p => fetch(`${base}/data/${p}`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-  const [Q, ssr, ins, fund] = await Promise.all([get("quotes.json"), get("ssr.json"), get("insider.json"), get("fund.json")]);
+  const [Q, ssr, ins, fund, trend] = await Promise.all([get("quotes.json"), get("ssr.json"), get("insider.json"), get("fund.json"), get("trend.json")]);
   if (!Q) return;
   const radar = { short: Object.fromEntries((ssr || []).filter(x => x.tk).map(x => [x.tk, x])), ins: ins || [] };
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Oslo" });
@@ -19,7 +19,7 @@ export default async () => {
     if (!subs?.length) continue;
     const P = await db.get(b.key, { type: "json" });
     if (!P) continue;
-    const list = alerts(P, Q, radar, fund || { f: {} }, today);
+    const list = alerts(P, Q, radar, fund || { f: {} }, today, trend);
     const sent = (await db.get("sent/" + key, { type: "json" })) || {};
     const fresh = list.filter(a => !sent[a.key]);
     if (!fresh.length) continue;
