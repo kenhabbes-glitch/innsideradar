@@ -6,6 +6,7 @@ import { renderGroup } from "./views/group.js";
 import { renderTraining, destroyTraining } from "./views/training.js";
 import { renderSchool } from "./views/school.js";
 import { renderSettings } from "./views/settings.js";
+import { renderTrendRadar } from "./views/trend.js";
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
@@ -23,6 +24,7 @@ function route() {
   document.querySelectorAll("#learnnav a").forEach(a => a.setAttribute("aria-current", a.dataset.v === view ? "page" : "false"));
   $("tape").parentElement.hidden = view !== "radar";
   destroyChart(); destroyTraining();
+  if (view === "radar") renderTrendRadar();
   if (view === "marked") renderMarket();
   if (view === "instr") renderInstrument(arg);
   if (view === "portefolje") renderPortfolio();
@@ -134,7 +136,7 @@ async function start() {
   const tok = await accessToken();
   if (!tok) return showLogin();
   let h = null;
-  try { h = await fetch("/api/health", { headers: { Authorization: "Bearer " + tok } }).then(r => r.json()); } catch { /* offline */ }
+  try { h = await fetch("/.netlify/functions/api/health", { headers: { Authorization: "Bearer " + tok } }).then(r => r.json()); } catch { /* offline */ }
   if (!h?.user) { clearSession(); return showLogin(h ? "Logg inn på nytt." : "Får ikke kontakt med serveren. Sjekk nettet."); }
   AUTH.user = h.user; AUTH.admin = !!h.admin;
   loadLocal();
@@ -144,7 +146,7 @@ async function start() {
     document.querySelector(".brand").insertAdjacentHTML("beforeend", `<button class="sync" id="sync" type="button" title="Synk-status"><b>●</b> ${esc(S.sync.msg)}</button>`);
     $("sync").onclick = () => { location.hash = "innstillinger"; };
     initMarket();
-    setInterval(async () => { await loadAll(); if (!$("v-marked").hidden) renderMarket(); }, 10 * 60 * 1000);
+    setInterval(async () => { await loadAll(); if (!$("v-marked").hidden) renderMarket(); if (!$("v-radar").hidden) renderTrendRadar(); }, 10 * 60 * 1000);
   }
   await Promise.all([loadAll(), pull()]);
   route();

@@ -44,16 +44,16 @@ export function toast(msg) {
 }
 
 // ---------- data ----------
-export const D = { Q: { q: {}, updated: null }, RADAR: { short: {}, ins: [] }, FUND: { f: {} }, MACRO: {} };
+export const D = { Q: { q: {}, updated: null }, RADAR: { short: {}, ins: [] }, FUND: { f: {} }, MACRO: {}, TREND: null };
 const histCache = {}, newsCache = {};
 const v = () => (D.Q.updated || "").slice(0, 13);
 
 export async function loadAll() {
   const get = (u, fb) => window.irFetch(`${u}?v=${Date.now()}`).then(r => (r.ok ? r.json() : fb)).catch(() => fb);
-  const [q, s, i, f, m] = await Promise.all([get("quotes.json", null), get("ssr.json", []), get("insider.json", []), get("fund.json", { f: {} }), get("macro.json", {})]);
+  const [q, s, i, f, m, t] = await Promise.all([get("quotes.json", null), get("ssr.json", []), get("insider.json", []), get("fund.json", { f: {} }), get("macro.json", {}), get("trend.json", null)]);
   if (q) D.Q = q;
   D.RADAR = { short: Object.fromEntries(s.filter(x => x.tk).map(x => [x.tk, x])), ins: i };
-  D.FUND = f; D.MACRO = m;
+  D.FUND = f; D.MACRO = m; D.TREND = t;
 }
 export async function hist(sym) {
   histCache[sym] ||= window.irFetch(`hist/${safe(sym)}.json?v=${v()}`).then(r => (r.ok ? r.json() : null)).then(h =>
@@ -111,7 +111,7 @@ export async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   if (t) { headers.Authorization = "Bearer " + t; headers["x-ir-token"] = t; } // ekstra kopi i tilfelle Netlify fjerner Authorization
   if (opts.json !== undefined) { headers["content-type"] = "application/json"; opts = { ...opts, body: JSON.stringify(opts.json) }; }
-  const r = await fetch("/api/" + path, { ...opts, headers });
+  const r = await fetch("/.netlify/functions/api/" + path, { ...opts, headers });
   if (r.status === 401) { clearSession(); window.dispatchEvent(new Event("ir-logout")); throw new Error("Du må logge inn"); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || "Noe gikk galt (" + r.status + ")");

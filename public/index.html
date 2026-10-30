@@ -313,6 +313,13 @@ details.risk[open]{display:grid;gap:10px}
 #toast.on{transform:translate(-50%,0);opacity:1}
 @media (max-width:760px){#toast{bottom:84px}.two{grid-template-columns:1fr}}
 .sigrow a{color:var(--fg)}
+.b-own{color:var(--amber);border:1px solid var(--amber);margin-left:4px}
+.b-watch{color:var(--amber);border:1px solid var(--line);margin-left:4px}
+.trendintro{display:grid;gap:6px;border-bottom:1px solid var(--line)}
+.trendintro p{margin:0;font-size:13px}
+.trendintro a{color:var(--fg)}
+#trendpanel .who small,#trendmine .who small{line-height:1.5}
+@media (max-width:600px){#trendpanel .kv,#trendmine .kv{display:none}#trendpanel .who,#trendmine .who{min-width:0}}
 </style>
 </head>
 <body>
@@ -365,6 +372,8 @@ details.risk[open]{display:grid;gap:10px}
   <section class="view" id="v-radar" aria-label="Radar">
 
   <section class="kpis" id="kpis" aria-label="Nøkkeltall"></section>
+
+  <section class="panel" id="trendpanel" aria-label="Trendtvillinger" hidden></section>
 
   <section class="panel" aria-labelledby="sigh">
     <div class="ph"><h2 id="sigh"><em>◆</em>Dragkamp: innsidere kjøper, fond shorter</h2><span class="src">Selskaper med både innsidekjøp siste 30 dager og aktiv short</span></div>
