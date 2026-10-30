@@ -2,6 +2,7 @@ import { $, D, S, esc, nf2, nf4, kr, pct, pctPlain, cls, label, dmy, today, days
 import { lineChart } from "../lib/chart.js";
 import { alerts } from "../lib/alerts.js";
 import { activeOrders } from "../lib/portfolio.js";
+import { trendPortfolioHtml } from "./trend.js";
 
 const go = sym => { location.hash = "aksje/" + encodeURIComponent(sym); };
 
@@ -13,7 +14,7 @@ export async function renderPortfolio() {
   const tv = totalValue();
   const ret = tv / P.startCash - 1;
   const orders = Object.fromEntries(activeOrders(P));
-  const al = alerts(P, D.Q, D.RADAR, D.FUND, today()).slice(0, 12);
+  const al = alerts(P, D.Q, D.RADAR, D.FUND, today(), D.TREND).slice(0, 12);
   const due = dueReviews();
   const events = upcoming();
 
@@ -35,6 +36,8 @@ export async function renderPortfolio() {
         ${events.length ? events.map(e => `<div class="sigrow click" data-s="${esc(e.sym)}"><span class="ic nøytral">◷</span><b>${dmy(e.d)} · ${esc(e.navn)}</b><p>${e.what}${e.days <= 7 ? ` · <span style="color:var(--amber)">om ${e.days} dager</span>` : ""}</p></div>`).join("")
           : `<div class="empty">Ingen kjente rapporter eller utbyttedatoer. Følg aksjer med ★ for å se dem her.</div>`}</section>
     </div>
+
+    ${trendPortfolioHtml()}
 
     <section class="panel"><div class="ph"><h2><em>∿</em>Utvikling mot indeks</h2><span class="legend"><span><i style="background:var(--amber)"></i> Din portefølje</span><span><i style="background:var(--dim)"></i> Indeksfond</span></span></div><div class="pad"><div id="eq"></div><div class="note" id="eqnote"></div></div></section>
 
