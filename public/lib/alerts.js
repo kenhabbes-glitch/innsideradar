@@ -3,7 +3,7 @@ import { book, activeOrders } from "./portfolio.js";
 
 const IMPORTANT = new Set(["golden", "death", "rsiHøy", "rsiLav", "volum", "toppår", "bunnår"]);
 
-export function alerts(P, Q, radar = {}, fund = {}, today) {
+export function alerts(P, Q, radar = {}, fund = {}, today, trend = null) {
   const b = book(P);
   const watched = Object.entries(P.watch || {}).filter(([, w]) => w?.on).map(([s]) => s);
   const owned = Object.values(b.pos).filter(p => p.qty > 0).map(p => p.sym);
@@ -33,6 +33,21 @@ export function alerts(P, Q, radar = {}, fund = {}, today) {
     if (o.target && q.last >= o.target * 0.97 && q.last < o.target) add(sym, "nærmål", "opp", `${q.navn}: under 3 % fra kursmålet (${o.target})`, q.d);
   }
   for (const t of P.trades || []) if (t.auto && t.d >= daysAgo(today, 2)) add(t.sym, "auto-" + t.id, "nøytral", `${t.navn || t.sym}: ${t.why}`, t.d);
+  // Trendtvillinger: papiret pleier å følge noe som har falt (eier) eller steget (eier eller følger) kraftig.
+  // Nøkkelen har ikke dato, så samme varsel sendes ikke på nytt hver dag så lenge det står på listen.
+  if (trend?.d) {
+    const pc = v => (v >= 0 ? "+" : "−") + Math.abs(Math.round(v * 100)) + " %", abs = v => Math.abs(Math.round(v * 100)) + " %";
+    const ownedSet = new Set(owned);
+    const tw = (r, dir) => {
+      const l = r.links[0], more = r.links.length > 1 ? ` og ${r.links.length - 1} til` : "";
+      const text = dir === "ned"
+        ? `${r.navn}: pleier å følge ${l.navn}${more}, som har falt ${abs(l.ret)} siste måned. ${r.navn} er ${pc(r.ret)}. Sjekk stop-loss.`
+        : `${r.navn}: pleier å følge ${l.navn}${more}, som har steget ${abs(l.ret)} siste måned. ${r.navn} er bare ${pc(r.ret)}.`;
+      out.push({ key: `${r.sym}|trend-${dir}-${l.sym}`, sym: r.sym, type: "trend-" + dir, tone: dir, text, d: trend.d, navn: r.navn });
+    };
+    for (const r of trend.ned || []) if (ownedSet.has(r.sym)) tw(r, "ned");
+    for (const r of trend.opp || []) if (syms.includes(r.sym)) tw(r, "opp");
+  }
   return out.sort((a, b) => (a.d < b.d ? 1 : -1));
 }
 const daysAgo = (d, n) => new Date(new Date(d + "T12:00:00Z") - n * 864e5).toISOString().slice(0, 10);
