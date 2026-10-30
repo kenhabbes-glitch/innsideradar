@@ -51,6 +51,9 @@ jobs:
         continue-on-error: true
       - name: Kurser
         run: node scripts/prices.mjs
+      - name: Trendtvillinger (papirer som henger etter)
+        run: node scripts/trend.mjs
+        continue-on-error: true
       - name: Makro (olje, valuta, rente, laks, strøm)
         run: node scripts/macro.mjs
         continue-on-error: true
